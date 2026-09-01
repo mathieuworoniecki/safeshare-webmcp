@@ -26,6 +26,12 @@ Native sharing opens the operating system's share sheet after a human click. The
 
 ## Try it
 
+**[Open the live sample →](https://mathieuworoniecki.github.io/safeshare-webmcp/?demo=1&lang=en)**
+
+No account or upload is required. The sample opens with six editable masks so you can test the complete review and export flow immediately.
+
+### Run it locally
+
 You need Node.js 20 or newer.
 
 ```bash
@@ -60,6 +66,8 @@ SafeShare exposes the actions of its live mask editor as structured browser tool
 The tools never return document text, file names, images or sensitive values. They also cannot download or share the result. **Only the user can confirm the final export.**
 
 SafeShare uses the imperative `document.modelContext.registerTool()` API from the [WebMCP proposal](https://github.com/webmachinelearning/webmcp) and follows [OpenAI’s WebMCP guidance](https://learn.chatgpt.com/docs/webmcp).
+
+For the challenge evaluation path, privacy contract and implementation notes, see [WebMCP Challenge notes](./HACKATHON.md).
 
 ## Privacy by design
 
