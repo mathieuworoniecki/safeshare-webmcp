@@ -1,89 +1,90 @@
-# SafeShare · WebMCP
+<div align="center">
 
-**Share the document, not your data.** SafeShare is a local-first privacy review desk for PDFs and images. It finds likely personal data, places reversible masks over the source, asks a human to decide on every finding, and exports a flattened copy.
+# SafeShare
 
-The application is also a WebMCP provider. A browser agent can understand the review state and help organize decisions through structured tools, while the page remains the primary interface and the final download always requires an explicit human confirmation.
+### Share the document. Not your data.
 
-> Experimental challenge project. Detection is an aid, not a guarantee. Always review the full document before sharing it.
+SafeShare finds sensitive information in PDFs and images, lets you review every redaction, and creates a safe copy — entirely in your browser.
 
-## What works
+**Local-first · Human-reviewed · WebMCP-enabled**
 
-- PDF, PNG, JPEG and WEBP import (18 MB, up to 12 PDF pages)
-- browser-side PDF rendering and OCR
-- detection of e-mail addresses, French phone numbers, IBANs, identity references, dates and postal addresses
-- visible, reversible `pending` / `approved` / `dismissed` review states
-- manual rectangle drawing for anything the detector misses
-- flattened PNG or PDF export: approved masks are fused into pixels, not laid over extractable source text
-- built-in synthetic demo available from the empty state or at `/?demo=1`
-- responsive review workspace and reduced-motion support
-- six imperative WebMCP tools registered with `document.modelContext.registerTool()`
+</div>
 
-## Run locally
+> SafeShare helps you find sensitive data. It does not replace a careful human review.
 
-Requirements: Node.js 20 or newer.
+## How it works
+
+1. **Import** a PDF or image.
+2. **Review** each detected e-mail, phone number, IBAN, identity reference, date or address.
+3. **Export** a flattened copy in which approved redactions are permanently fused into the pixels.
+
+Your original file is never changed or uploaded.
+
+## Try it
+
+You need Node.js 20 or newer.
 
 ```bash
+git clone https://github.com/mathieuworoniecki/safeshare-webmcp.git
+cd safeshare-webmcp
 npm install
 npm run dev
 ```
 
-Then open `http://localhost:4173`. The regular UI continues to work in a browser without WebMCP; the status badge reports whether the API is available.
+Open [http://localhost:4173](http://localhost:4173).
+
+Choose **“Try with a fictional document”** or open [http://localhost:4173/?demo=1](http://localhost:4173/?demo=1) to load the demo directly.
+
+## Why WebMCP?
+
+SafeShare exposes the actions of its live interface as structured browser tools. An agent can help navigate the privacy review without scraping the page or requiring a separate MCP server.
+
+| Tool | What the agent can do |
+|---|---|
+| `get_privacy_review` | Check the review progress |
+| `list_privacy_findings` | List safe metadata about detected zones |
+| `focus_privacy_finding` | Show a zone in the visible interface |
+| `decide_privacy_finding` | Mark a zone to redact or preserve |
+| `add_manual_redaction` | Propose a rectangular redaction |
+| `prepare_safe_export` | Check blockers and open the final review |
+
+The tools never return document text, file names, images or sensitive values. They also cannot download the result. **Only the user can confirm the final export.**
+
+SafeShare uses the imperative `document.modelContext.registerTool()` API from the [WebMCP proposal](https://github.com/webmachinelearning/webmcp) and follows [OpenAI’s WebMCP guidance](https://learn.chatgpt.com/docs/webmcp).
+
+## Privacy by design
+
+```text
+File → local analysis → human review → flattened local copy
+          no document upload
+```
+
+- The document stays in the current browser tab.
+- The source file is never modified or saved by SafeShare.
+- OCR and redaction run on the device.
+- Refreshing or closing the tab clears the review.
+- The first OCR use may download a language model, but document pixels are not sent with that request.
+
+More detail: [Security policy](./SECURITY.md).
+
+## Supported files
+
+- PDF: up to 12 pages
+- PNG, JPEG and WEBP
+- Maximum file size: 18 MB
+
+## Verify the project
 
 ```bash
 npm test
 npm run build
 ```
 
-## WebMCP tools
+## Current limits
 
-| Tool | Effect | Data returned | Read-only hint |
-|---|---|---|---|
-| `get_privacy_review` | Summarizes review progress | File kind, page count, decision counts | Yes |
-| `list_privacy_findings` | Lists safe metadata for findings | ID, category, page, confidence, status | Yes |
-| `focus_privacy_finding` | Focuses a finding in the visible UI | Success and finding ID | No |
-| `decide_privacy_finding` | Approves or dismisses one/all pending findings | Decision outcome | No |
-| `add_manual_redaction` | Adds a normalized rectangular proposal | New finding ID, still pending | No |
-| `prepare_safe_export` | Checks blockers and opens the confirmation dialog | Readiness and blocker count | No |
-
-Tool schemas reject extra parameters. Read tools never expose document text, file names, raw values, masked previews, image data or bounding boxes. The export tool intentionally **does not download anything**: only the person in front of the page can check the confirmation and create the file.
-
-The tools follow the current imperative API in the [WebMCP proposal](https://github.com/webmachinelearning/webmcp) and the browser integration guidance in [OpenAI’s WebMCP documentation](https://learn.chatgpt.com/docs/webmcp). Registrations are tied to the page lifetime through a shared `AbortSignal`.
-
-## Privacy model
-
-```text
-local file → browser memory → local parsing/OCR → human review → flattened local download
-                  └──────────── no document upload ────────────┘
-```
-
-- Source files are never modified or persisted by SafeShare.
-- Rendering, pattern matching, review state and export happen in the tab.
-- OCR runs in the browser. On first use, Tesseract may fetch its language model; document pixels are not sent with that request.
-- WebMCP outputs are deliberately data-minimized to reduce cross-context leakage.
-- The synthetic demo contains no real personal data.
-- Closing or refreshing the tab clears the review state.
-
-See [SECURITY.md](./SECURITY.md) for the threat model and safe disclosure guidance.
-
-## Project structure
-
-```text
-src/
-├── App.tsx                 review workflow and human confirmation
-├── lib/
-│   ├── demo.ts             synthetic document
-│   ├── detection.ts        deterministic sensitive-data patterns
-│   ├── document.ts         PDF/image parsing, OCR and flattened export
-│   └── webmcp.ts           scoped WebMCP tool registration
-└── styles.css              responsive visual system
-```
-
-## Known limits
-
-- Pattern matching and OCR can produce false positives or miss unusual formats.
-- Named-entity recognition is intentionally conservative in this prototype.
-- Flattened PDF export preserves appearance, not selectable text or accessibility structure.
-- Browser WebMCP support is experimental; SafeShare treats the visual UI as the canonical fallback.
+- OCR and pattern matching can miss data or produce false positives.
+- Flattened PDFs preserve their appearance, but not selectable text or accessibility structure.
+- WebMCP browser support is experimental. The visual interface remains fully usable without it.
 
 ## License
 
