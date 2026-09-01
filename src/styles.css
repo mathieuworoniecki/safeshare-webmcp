@@ -231,6 +231,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, [role='button']:focu
 .zoom-controls { padding: 2px 4px; background: #ecefec; border-radius: 9px; }
 .zoom-controls .icon-button { width: 27px; height: 27px; background: white; }
 .zoom-controls span { min-width: 39px; text-align: center; color: #5e6b64; font: 600 9px 'IBM Plex Mono', monospace; }
+.opacity-control { height: 34px; padding: 0 10px; display: flex; align-items: center; gap: 8px; background: white; border: 1px solid #cdd4cf; border-radius: 8px; color: #5e6b64; font-size: 9px; font-weight: 700; }
+.opacity-control input { width: 92px; height: 3px; margin: 0; accent-color: var(--forest); cursor: pointer; }
 .compare-button { height: 34px; padding: 0 11px; display: flex; align-items: center; gap: 6px; border: 1px solid #cdd4cf; background: white; border-radius: 8px; cursor: pointer; font-size: 10px; font-weight: 700; }
 .compare-button:hover, .compare-button.active { color: var(--forest); border-color: #8da699; background: #e9f2ed; }
 .manual-button { height: 34px; padding: 0 12px; display: flex; align-items: center; gap: 7px; border: 1px solid #cdd4cf; background: white; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: 700; }
@@ -238,19 +240,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, [role='button']:focu
 .canvas-scroll { flex: 1; min-height: 0; overflow: auto; padding: 36px clamp(30px, 5vw, 72px) 120px; display: flex; align-items: flex-start; justify-content: center; }
 .page-surface { position: relative; width: min(100%, 760px); flex: 0 0 auto; background: white; box-shadow: 0 10px 35px rgba(31, 42, 36, .16), 0 0 0 1px rgba(44, 55, 49, .08); user-select: none; touch-action: none; }
 .page-surface > img { display: block; width: 100%; height: 100%; object-fit: fill; pointer-events: none; }
-.page-surface.drawing { cursor: crosshair; box-shadow: 0 10px 35px rgba(31, 42, 36, .16), 0 0 0 3px rgba(37, 76, 62, .4); }
+.page-surface.draw-ready { cursor: crosshair; }
 .finding-overlay { position: absolute; margin: 0; padding: 0; border: 0; border-radius: 2px; background: #17211d; box-shadow: 0 0 0 1px #17211d; cursor: move; overflow: visible; transition: opacity .15s, box-shadow .15s; touch-action: none; }
 .finding-overlay.selected { opacity: 1; box-shadow: 0 0 0 3px rgba(55, 117, 90, .34); z-index: 5; }
 .delete-mask { position: absolute; top: -10px; right: -10px; width: 22px; height: 22px; padding: 0; display: grid; place-items: center; color: white; background: #c94f36; border: 2px solid white; border-radius: 50%; cursor: pointer; box-shadow: 0 2px 7px rgba(23,33,29,.28); z-index: 7; }
 .delete-mask:hover { background: #a93d28; transform: scale(1.06); }
 .resize-handle { position: absolute; right: -8px; bottom: -8px; width: 16px; height: 16px; padding: 0; display: block; background: white; border: 3px solid var(--forest); border-radius: 50%; cursor: nwse-resize; box-shadow: 0 1px 4px rgba(0,0,0,.2); }
+.page-surface.show-original { cursor: default; }
 .page-surface.show-original .finding-overlay { opacity: 0; pointer-events: none; }
-.page-surface.drawing .finding-overlay { pointer-events: none; }
 .draft-overlay { position: absolute; border: 2px dashed var(--forest); background: rgba(75, 145, 114, .18); pointer-events: none; }
-.drawing-hint { margin: 0 auto 14px; padding: 8px 13px; display: flex; gap: 7px; align-items: center; background: var(--forest); color: white; border-radius: 8px; font-size: 11px; font-weight: 700; box-shadow: 0 6px 15px rgba(30, 63, 51, .2); }
-.floating-add-button { position: fixed; z-index: 80; right: 26px; bottom: 24px; width: 54px; height: 54px; padding: 0; display: grid; place-items: center; color: white; background: var(--forest); border: 0; border-radius: 50%; cursor: pointer; box-shadow: 0 10px 28px rgba(23,48,39,.28); }
-.floating-add-button:hover { background: #183e31; transform: translateY(-2px); }
-.floating-add-button.active { background: #c94f36; }
 .floating-download-button { position: fixed; z-index: 80; left: 50%; bottom: 24px; min-width: 158px; min-height: 50px; padding: 0 23px; display: flex; align-items: center; justify-content: center; gap: 9px; transform: translateX(-50%); color: white; background: var(--ink); border: 0; border-radius: 25px; cursor: pointer; font-size: 13px; font-weight: 800; box-shadow: 0 10px 30px rgba(23,33,29,.28); }
 .floating-download-button:hover:not(:disabled) { background: var(--forest); transform: translate(-50%, -2px); }
 .floating-download-button:disabled { opacity: .65; cursor: wait; }
@@ -287,8 +285,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, [role='button']:focu
   .stage-toolbar { padding: 9px 12px; }.stage-toolbar > div:first-child { display: none; }.stage-toolbar { justify-content: flex-end; }
   .history-controls { display: none; }
   .canvas-scroll { padding: 22px 16px 110px; }
-  .floating-add-button { right: 16px; bottom: 16px; width: 50px; height: 50px; }
   .floating-download-button { bottom: 16px; min-height: 48px; min-width: 146px; }
+  .opacity-control { padding: 0 8px; }.opacity-control span { display: none; }.opacity-control input { width: 74px; }
   .toast { bottom: 78px; }
 }
 

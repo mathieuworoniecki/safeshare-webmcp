@@ -8,16 +8,13 @@ import {
   Eye,
   FileSearch,
   FileUp,
-  Focus,
   LockKeyhole,
-  Plus,
   RotateCcw,
   Redo2,
   ShieldCheck,
   Sparkles,
   Trash2,
   Undo2,
-  X,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react'
@@ -62,10 +59,10 @@ function App() {
   const [isExporting, setIsExporting] = useState(false)
   const [webMCPStatus, setWebMCPStatus] = useState<WebMCPStatus>('registering')
   const [dragging, setDragging] = useState(false)
-  const [manualMode, setManualMode] = useState(false)
   const [draftBox, setDraftBox] = useState<BoundingBox | null>(null)
   const [editingBox, setEditingBox] = useState<{ id: string; box: BoundingBox } | null>(null)
   const [zoom, setZoom] = useState(1)
+  const [maskOpacity, setMaskOpacity] = useState(0.45)
   const [showOriginal, setShowOriginal] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -173,7 +170,6 @@ function App() {
     resetFindings([])
     setSelectedFindingId(null)
     setSelectedPage(0)
-    setManualMode(false)
     setScanProgress({ phase: 'reading', value: 1, message: 'Analyse locale en cours' })
     try {
       const { processFile } = await import('./lib/document')
@@ -201,7 +197,6 @@ function App() {
     resetFindings(demo.findings)
     setSelectedFindingId(demo.findings[0]?.id ?? null)
     setSelectedPage(0)
-    setManualMode(false)
     setScanProgress({ phase: 'ready', value: 100, message: '6 zones masquées automatiquement' })
     setNotice('Démo chargée : les 6 zones sensibles sont déjà masquées.')
   }, [resetFindings])
@@ -275,7 +270,7 @@ function App() {
   }
 
   const startDrawing = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!manualMode || !currentPage) return
+    if (!currentPage || showOriginal) return
     event.currentTarget.setPointerCapture(event.pointerId)
     const start = pointerPosition(event)
     dragStartRef.current = start
@@ -287,7 +282,7 @@ function App() {
     finding: Finding,
     mode: 'move' | 'resize',
   ) => {
-    if (manualMode || showOriginal) return
+    if (showOriginal) return
     event.stopPropagation()
     event.currentTarget.setPointerCapture(event.pointerId)
     setSelectedFindingId(finding.id)
@@ -317,7 +312,7 @@ function App() {
       setEditingBox({ id, box })
       return
     }
-    if (!manualMode || !dragStartRef.current) return
+    if (!dragStartRef.current) return
     const start = dragStartRef.current
     setDraftBox({
       x: Math.min(start.x, point.x),
@@ -338,7 +333,6 @@ function App() {
     const id = addManualFinding({ ...draftBox, pageIndex: selectedPage })
     dragStartRef.current = null
     setDraftBox(null)
-    setManualMode(false)
     if (!id) setNotice('Tracez une zone un peu plus grande.')
   }
 
@@ -515,13 +509,22 @@ function App() {
                 </div>
                 <button
                   className={`compare-button ${showOriginal ? 'active' : ''}`}
-                  onClick={() => {
-                    setShowOriginal((value) => !value)
-                    setManualMode(false)
-                  }}
+                  onClick={() => setShowOriginal((value) => !value)}
                 >
                   <Eye size={16} /> {showOriginal ? 'Voir les masques' : "Voir l’original"}
                 </button>
+                <label className="opacity-control" title="Opacité de l’aperçu des masques">
+                  <span>Opacité</span>
+                  <input
+                    type="range"
+                    min="15"
+                    max="85"
+                    step="5"
+                    value={Math.round(maskOpacity * 100)}
+                    aria-label="Opacité de l’aperçu des masques"
+                    onChange={(event) => setMaskOpacity(Number(event.target.value) / 100)}
+                  />
+                </label>
                 <div className="zoom-controls" aria-label="Zoom du document">
                   <button className="icon-button" aria-label="Réduire le zoom" disabled={zoom <= 0.75} onClick={() => setZoom((value) => Math.max(0.75, value - 0.25))}><ZoomOut size={16} /></button>
                   <span>{Math.round(zoom * 100)} %</span>
@@ -539,7 +542,7 @@ function App() {
             <div className="canvas-scroll">
               <div
                 ref={pageSurfaceRef}
-                className={`page-surface ${manualMode ? 'drawing' : ''} ${showOriginal ? 'show-original' : ''}`}
+                className={`page-surface ${showOriginal ? 'show-original' : 'draw-ready'}`}
                 style={{
                   aspectRatio: currentPage ? `${currentPage.width} / ${currentPage.height}` : undefined,
                   width: currentPage ? `${Math.min(currentPage.width, 760) * zoom}px` : undefined,
@@ -563,6 +566,7 @@ function App() {
                         top: `${box.y * 100}%`,
                         width: `${box.width * 100}%`,
                         height: `${box.height * 100}%`,
+                        backgroundColor: `rgba(23, 33, 29, ${maskOpacity})`,
                       }}
                       role="button"
                       tabIndex={0}
@@ -598,28 +602,14 @@ function App() {
                 )}
               </div>
             </div>
-            {manualMode && <div className="drawing-hint"><Focus size={16} /> Cliquez-glissez pour tracer un masque.</div>}
           </section>
         </main>
       )}
 
       {safeDocument && (
-        <>
-          <button
-            className={`floating-add-button ${manualMode ? 'active' : ''}`}
-            aria-label={manualMode ? 'Annuler le tracé' : 'Tracer une zone'}
-            title={manualMode ? 'Annuler le tracé' : 'Tracer une zone'}
-            onClick={() => {
-              setShowOriginal(false)
-              setManualMode((active) => !active)
-            }}
-          >
-            {manualMode ? <X size={25} /> : <Plus size={28} />}
-          </button>
-          <button className="floating-download-button" disabled={isExporting} onClick={() => void download()}>
-            <Download size={18} /> {isExporting ? 'Downloading…' : 'Download'}
-          </button>
-        </>
+        <button className="floating-download-button" disabled={isExporting} onClick={() => void download()}>
+          <Download size={18} /> {isExporting ? 'Downloading…' : 'Download'}
+        </button>
       )}
 
       {notice && <div className="toast" role="status"><CheckCircle2 size={17} /> {notice}</div>}

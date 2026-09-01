@@ -15,8 +15,10 @@ SafeShare finds sensitive information in PDFs and images, draws redaction masks 
 ## How it works
 
 1. **Import** a PDF or image.
-2. **Adjust** the automatic masks: move, resize, delete or add a rectangle.
+2. **Adjust** the automatic masks: move, resize or delete them. Drag anywhere outside a mask to draw a new one.
 3. Click **Download** to create a flattened copy in which every visible mask is permanently fused into the pixels.
+
+The opacity slider changes only the editing preview. Downloaded masks are always fully opaque.
 
 Your original file is never changed or uploaded.
 

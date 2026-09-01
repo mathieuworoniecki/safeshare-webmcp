@@ -13,6 +13,7 @@ SafeShare handles potentially sensitive documents, so its security boundary is i
 7. Uploads are checked by their binary signature instead of trusting the filename or MIME label.
 8. Agent and human mask changes share the same undo history.
 9. A read-only safety check blocks export when mask coordinates are invalid.
+10. Preview opacity never affects export opacity; downloaded masks are always solid.
 
 ## Reporting a vulnerability
 
