@@ -9,6 +9,7 @@ type WebMCPTool = {
   inputSchema?: Record<string, unknown>
   annotations?: {
     readOnlyHint?: boolean
+    destructiveHint?: boolean
     untrustedContentHint?: boolean
   }
   execute: (

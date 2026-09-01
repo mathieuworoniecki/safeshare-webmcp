@@ -8,8 +8,6 @@ export type FindingType =
   | 'name'
   | 'manual'
 
-export type FindingStatus = 'pending' | 'approved' | 'dismissed'
-
 export type BoundingBox = {
   x: number
   y: number
@@ -25,7 +23,6 @@ export type Finding = {
   confidence: number
   pageIndex: number
   box: BoundingBox
-  status: FindingStatus
   source: 'text' | 'ocr' | 'manual' | 'demo'
   reason?: string
 }
@@ -58,14 +55,6 @@ export type AppSnapshot = {
   selectedFindingId: string | null
   selectedPage: number
   scanProgress: ScanProgress
-  exportDialogOpen: boolean
   canUndo: boolean
   canRedo: boolean
-}
-
-export type ActivityEntry = {
-  id: string
-  actor: 'human' | 'agent'
-  message: string
-  createdAt: number
 }

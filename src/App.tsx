@@ -1,34 +1,29 @@
 import {
   ArrowRight,
-  Bot,
   Check,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  CircleAlert,
   Download,
   Eye,
-  EyeOff,
   FileSearch,
   FileUp,
   Focus,
-  History,
   LockKeyhole,
-  MousePointer2,
+  Plus,
   RotateCcw,
   Redo2,
   ShieldCheck,
   Sparkles,
-  SquareDashedMousePointer,
+  Trash2,
   Undo2,
-  UserRound,
   X,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useReviewHistory } from './hooks/useReviewHistory'
-import { clampBox, explainFinding } from './lib/detection'
+import { clampBox } from './lib/detection'
 import { createDemo } from './lib/demo'
 import { buildExportSafetyReport } from './lib/export-safety'
 import {
@@ -37,23 +32,12 @@ import {
   type WebMCPActions,
   type WebMCPStatus,
 } from './lib/webmcp'
-import type { ActivityEntry, AppSnapshot, BoundingBox, Finding, FindingStatus, SafeDocument, ScanProgress } from './types'
+import type { AppSnapshot, BoundingBox, Finding, SafeDocument, ScanProgress } from './types'
 
 const initialProgress: ScanProgress = {
   phase: 'idle',
   value: 0,
   message: 'En attente d’un document',
-}
-
-const typeTone: Record<Finding['type'], string> = {
-  email: 'blue',
-  phone: 'violet',
-  iban: 'red',
-  identity: 'red',
-  address: 'amber',
-  date: 'amber',
-  name: 'green',
-  manual: 'slate',
 }
 
 const statusCopy: Record<WebMCPStatus, string> = {
@@ -69,19 +53,12 @@ function formatBytes(size: number) {
   return `${(size / (1024 * 1024)).toFixed(1)} Mo`
 }
 
-function confidenceLabel(confidence: number) {
-  if (confidence >= 0.93) return 'Confiance forte'
-  if (confidence >= 0.82) return 'Confiance moyenne'
-  return 'À contrôler'
-}
-
 function App() {
   const [safeDocument, setSafeDocument] = useState<SafeDocument | null>(null)
   const { findings, canUndo, canRedo, resetFindings, commitFindings, undo, redo } = useReviewHistory()
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null)
   const [selectedPage, setSelectedPage] = useState(0)
   const [scanProgress, setScanProgress] = useState<ScanProgress>(initialProgress)
-  const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [webMCPStatus, setWebMCPStatus] = useState<WebMCPStatus>('registering')
   const [dragging, setDragging] = useState(false)
@@ -90,7 +67,6 @@ function App() {
   const [editingBox, setEditingBox] = useState<{ id: string; box: BoundingBox } | null>(null)
   const [zoom, setZoom] = useState(1)
   const [showOriginal, setShowOriginal] = useState(false)
-  const [activity, setActivity] = useState<ActivityEntry[]>([])
   const [notice, setNotice] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pageSurfaceRef = useRef<HTMLDivElement>(null)
@@ -110,7 +86,6 @@ function App() {
     selectedFindingId: null,
     selectedPage: 0,
     scanProgress: initialProgress,
-    exportDialogOpen: false,
     canUndo: false,
     canRedo: false,
   })
@@ -121,45 +96,20 @@ function App() {
     selectedFindingId,
     selectedPage,
     scanProgress,
-    exportDialogOpen,
     canUndo,
     canRedo,
   }
 
-  const pendingCount = findings.filter((finding) => finding.status === 'pending').length
-  const approvedCount = findings.filter((finding) => finding.status === 'approved').length
-  const dismissedCount = findings.filter((finding) => finding.status === 'dismissed').length
   const currentPage = safeDocument?.pages[selectedPage]
-  const selectedFinding = findings.find((finding) => finding.id === selectedFindingId)
-  const selectedExplanation = selectedFinding ? explainFinding(selectedFinding) : null
 
-  const recordActivity = useCallback((actor: ActivityEntry['actor'], message: string) => {
-    setActivity((current) => [
-      ...current,
-      { id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, actor, message, createdAt: Date.now() },
-    ].slice(-30))
-  }, [])
+  const removeFinding = useCallback((id: string) => {
+    if (!snapshotRef.current.findings.some((finding) => finding.id === id)) return false
+    commitFindings((current) => current.filter((finding) => finding.id !== id))
+    setSelectedFindingId((selected) => selected === id ? null : selected)
+    return true
+  }, [commitFindings])
 
-  const updateFinding = useCallback((
-    id: string,
-    status: FindingStatus,
-    actor: ActivityEntry['actor'] = 'human',
-  ) => {
-    const changed = snapshotRef.current.findings.some((finding) => finding.id === id)
-    if (!changed) return false
-    commitFindings((current) => {
-      const target = current.find((finding) => finding.id === id)
-      if (!target || target.status === status) return current
-      return current.map((finding) => finding.id === id ? { ...finding, status } : finding)
-    })
-    recordActivity(actor, `${id} · ${status === 'approved' ? 'masquage validé' : status === 'dismissed' ? 'zone conservée' : 'décision réouverte'}`)
-    return changed
-  }, [commitFindings, recordActivity])
-
-  const addManualFinding = useCallback((
-    input: BoundingBox & { pageIndex: number },
-    actor: ActivityEntry['actor'] = 'human',
-  ) => {
+  const addManualFinding = useCallback((input: BoundingBox & { pageIndex: number }) => {
     const snapshot = snapshotRef.current
     if (!snapshot.document || !snapshot.document.pages[input.pageIndex]) return null
     const box = clampBox(input)
@@ -173,16 +123,14 @@ function App() {
       confidence: 1,
       pageIndex: input.pageIndex,
       box,
-      status: 'pending',
       source: 'manual',
       reason: 'Zone rectangulaire ajoutée explicitement dans l’éditeur.',
     }
     commitFindings((current) => [...current, finding])
     setSelectedPage(input.pageIndex)
     setSelectedFindingId(id)
-    recordActivity(actor, `${id} · zone manuelle ajoutée`)
     return id
-  }, [commitFindings, recordActivity])
+  }, [commitFindings])
 
   const webMCPActions = useRef<WebMCPActions>({
     getSnapshot: () => snapshotRef.current,
@@ -193,43 +141,22 @@ function App() {
       setSelectedFindingId(id)
       return true
     },
-    setFindingStatus: (id, status) => updateFinding(id, status, 'agent'),
-    setAllPending: (status) => {
-      const count = snapshotRef.current.findings.filter((finding) => finding.status === 'pending').length
-      if (!count) return 0
-      commitFindings((current) =>
-        current.map((finding) => (finding.status === 'pending' ? { ...finding, status } : finding)),
-      )
-      recordActivity('agent', `${count} zone${count > 1 ? 's' : ''} · décision groupée`)
-      return count
-    },
-    addManualRedaction: (input) => addManualFinding(input, 'agent'),
+    deleteFinding: removeFinding,
+    addManualRedaction: addManualFinding,
     undoLastAction: () => {
       if (!snapshotRef.current.canUndo) return false
       undo()
-      recordActivity('agent', 'Dernière modification annulée')
       return true
     },
     prepareExport: () => {
       const snapshot = snapshotRef.current
       const report = buildExportSafetyReport(snapshot.document, snapshot.findings)
-      if (report.ready) {
-        setExportDialogOpen(true)
-        recordActivity('agent', 'Contrôle réussi · confirmation d’export ouverte')
-      }
-      if (report.pending > 0) {
-        const first = snapshotRef.current.findings.find((finding) => finding.status === 'pending')
-        if (first) {
-          setSelectedPage(first.pageIndex)
-          setSelectedFindingId(first.id)
-        }
-      }
+      setNotice(report.ready ? 'Prêt. Cliquez sur Download pour créer la copie.' : report.issues[0])
       return report
     },
   })
 
   useEffect(() => registerSafeShareTools(webMCPActions.current, setWebMCPStatus), [])
-
   useEffect(() => () => scanAbortRef.current?.abort(), [])
 
   useEffect(() => {
@@ -244,10 +171,9 @@ function App() {
     scanAbortRef.current = controller
     setSafeDocument(null)
     resetFindings([])
-    setActivity([])
     setSelectedFindingId(null)
     setSelectedPage(0)
-    setExportDialogOpen(false)
+    setManualMode(false)
     setScanProgress({ phase: 'reading', value: 1, message: 'Analyse locale en cours' })
     try {
       const { processFile } = await import('./lib/document')
@@ -273,81 +199,49 @@ function App() {
     const demo = createDemo()
     setSafeDocument(demo.document)
     resetFindings(demo.findings)
-    setActivity([])
-    setSelectedFindingId(demo.findings[0].id)
+    setSelectedFindingId(demo.findings[0]?.id ?? null)
     setSelectedPage(0)
-    setScanProgress({ phase: 'ready', value: 100, message: '6 zones à vérifier' })
-    setExportDialogOpen(false)
-    setNotice('Document de démonstration chargé — toutes les données sont fictives.')
+    setManualMode(false)
+    setScanProgress({ phase: 'ready', value: 100, message: '6 zones masquées automatiquement' })
+    setNotice('Démo chargée : les 6 zones sensibles sont déjà masquées.')
   }, [resetFindings])
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('demo') === '1') loadDemo()
   }, [loadDemo])
 
-  const selectFinding = (finding: Finding) => {
-    setSelectedPage(finding.pageIndex)
-    setSelectedFindingId(finding.id)
-  }
-
-  const decideFinding = (finding: Finding, status: Exclude<FindingStatus, 'pending'>) => {
-    updateFinding(finding.id, status)
-    const currentIndex = findings.findIndex((candidate) => candidate.id === finding.id)
-    const next = findings.slice(currentIndex + 1).find((candidate) => candidate.status === 'pending')
-      ?? findings.find((candidate) => candidate.status === 'pending' && candidate.id !== finding.id)
-    if (next) selectFinding(next)
-  }
-
-  const openExportReview = () => {
+  const download = async () => {
+    if (!safeDocument) return
     const report = buildExportSafetyReport(safeDocument, findings)
     if (!report.ready) {
-      const firstPending = findings.find((finding) => finding.status === 'pending')
-      if (firstPending) selectFinding(firstPending)
-      setNotice(report.issues[0] ?? 'Le contrôle de sûreté bloque encore l’export.')
+      setNotice(report.issues[0] ?? 'Le téléchargement est impossible.')
       return
     }
-    setExportDialogOpen(true)
-    recordActivity('human', 'Contrôle réussi · confirmation d’export ouverte')
-  }
-
-  const confirmExport = async () => {
-    if (!safeDocument) return
     setIsExporting(true)
     try {
       const { exportRedactedDocument } = await import('./lib/document')
       await exportRedactedDocument(safeDocument, findings)
-      setExportDialogOpen(false)
-      setNotice('Copie aplatie générée. Le document source est resté intact.')
+      setNotice('Copie téléchargée. Le document original est inchangé.')
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Export impossible.')
+      setNotice(error instanceof Error ? error.message : 'Téléchargement impossible.')
     } finally {
       setIsExporting(false)
     }
   }
 
-  const approveAllPending = () => {
-    if (!pendingCount) return
-    commitFindings((current) =>
-      current.map((finding) => (finding.status === 'pending' ? { ...finding, status: 'approved' } : finding)),
-    )
-    recordActivity('human', `${pendingCount} zone${pendingCount > 1 ? 's' : ''} · masquage groupé`)
-    setNotice('Toutes les propositions ont été marquées pour masquage.')
-  }
-
-  const handleUndo = (actor: ActivityEntry['actor'] = 'human') => {
+  const handleUndo = useCallback(() => {
     if (!snapshotRef.current.canUndo) return false
     undo()
-    recordActivity(actor, 'Dernière modification annulée')
-    setNotice('Dernière modification annulée.')
+    setNotice('Modification annulée.')
     return true
-  }
+  }, [undo])
 
-  const handleRedo = () => {
-    if (!snapshotRef.current.canRedo) return
+  const handleRedo = useCallback(() => {
+    if (!snapshotRef.current.canRedo) return false
     redo()
-    recordActivity('human', 'Modification rétablie')
     setNotice('Modification rétablie.')
-  }
+    return true
+  }, [redo])
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
@@ -358,9 +252,9 @@ function App() {
     }
     window.addEventListener('keydown', handleShortcut)
     return () => window.removeEventListener('keydown', handleShortcut)
-  })
+  }, [handleRedo, handleUndo])
 
-  const updateFindingBox = (id: string, box: BoundingBox, announce = true) => {
+  const updateFindingBox = (id: string, box: BoundingBox) => {
     const normalized = clampBox(box)
     commitFindings((current) => {
       const target = current.find((finding) => finding.id === id)
@@ -370,7 +264,6 @@ function App() {
       if (unchanged) return current
       return current.map((finding) => finding.id === id ? { ...finding, box: normalized } : finding)
     })
-    if (announce) recordActivity('human', `${id} · position ajustée`)
   }
 
   const pointerPosition = (event: React.PointerEvent<HTMLElement>) => {
@@ -442,10 +335,11 @@ function App() {
       return
     }
     if (!dragStartRef.current || !draftBox) return
-    addManualFinding({ ...draftBox, pageIndex: selectedPage })
+    const id = addManualFinding({ ...draftBox, pageIndex: selectedPage })
     dragStartRef.current = null
     setDraftBox(null)
     setManualMode(false)
+    if (!id) setNotice('Tracez une zone un peu plus grande.')
   }
 
   const cancelPointerInteraction = () => {
@@ -455,7 +349,12 @@ function App() {
     setDraftBox(null)
   }
 
-  const nudgeFinding = (event: React.KeyboardEvent<HTMLButtonElement>, finding: Finding) => {
+  const handleFindingKey = (event: React.KeyboardEvent<HTMLDivElement>, finding: Finding) => {
+    if ((event.key === 'Delete' || event.key === 'Backspace') && !showOriginal) {
+      event.preventDefault()
+      removeFinding(finding.id)
+      return
+    }
     const directions: Record<string, [number, number]> = {
       ArrowLeft: [-1, 0],
       ArrowRight: [1, 0],
@@ -470,7 +369,7 @@ function App() {
       ...finding.box,
       x: Math.max(0, Math.min(1 - finding.box.width, finding.box.x + direction[0] * step)),
       y: Math.max(0, Math.min(1 - finding.box.height, finding.box.y + direction[1] * step)),
-    }, false)
+    })
   }
 
   const pageFindings = useMemo(
@@ -485,12 +384,8 @@ function App() {
           <span className="brand-mark"><ShieldCheck size={19} strokeWidth={2.4} /></span>
           <span>SafeShare</span>
         </a>
-        <div className="process-steps" aria-label="Progression">
-          <span className={safeDocument ? 'done' : 'active'}><i>1</i> Importer</span>
-          <ArrowRight size={14} />
-          <span className={safeDocument && pendingCount > 0 ? 'active' : safeDocument ? 'done' : ''}><i>2</i> Vérifier</span>
-          <ArrowRight size={14} />
-          <span className={safeDocument && pendingCount === 0 ? 'active' : ''}><i>3</i> Exporter</span>
+        <div className="editor-summary">
+          {safeDocument ? `${findings.length} zone${findings.length > 1 ? 's' : ''} masquée${findings.length > 1 ? 's' : ''}` : 'Masquage local et automatique'}
         </div>
         <div className={`webmcp-status ${webMCPStatus}`} title="État de l’intégration WebMCP">
           <span className="status-dot" />
@@ -504,11 +399,11 @@ function App() {
             <p className="eyebrow"><LockKeyhole size={15} /> CONFIDENTIALITÉ LOCALE</p>
             <h1>Partagez le document.<br /><span>Pas vos données.</span></h1>
             <p className="intro-copy">
-              SafeShare repère les informations sensibles dans vos PDF et images. Vous gardez la main sur chaque masquage avant de créer une copie sûre.
+              SafeShare trace automatiquement les zones sensibles. Déplacez, redimensionnez ou supprimez les masques, puis téléchargez votre copie.
             </p>
             <div className="trust-row">
               <span><Check size={15} /> Aucun envoi serveur</span>
-              <span><Check size={15} /> Source jamais modifiée</span>
+              <span><Check size={15} /> Masques automatiques</span>
               <span><Check size={15} /> Export aplati</span>
             </div>
           </section>
@@ -583,13 +478,10 @@ function App() {
               hidden
             />
 
-            <div className="rail-heading">
-              <span>PAGES</span>
-              <span>{safeDocument.pages.length}</span>
-            </div>
+            <div className="rail-heading"><span>PAGES</span><span>{safeDocument.pages.length}</span></div>
             <div className="page-list">
               {safeDocument.pages.map((page) => {
-                const pageCount = findings.filter((finding) => finding.pageIndex === page.index && finding.status !== 'dismissed').length
+                const pageCount = findings.filter((finding) => finding.pageIndex === page.index).length
                 return (
                   <button
                     key={page.index}
@@ -613,24 +505,22 @@ function App() {
           <section className="document-stage">
             <div className="stage-toolbar">
               <div>
-                <span className="stage-kicker">{showOriginal ? 'APERÇU DU SOURCE' : 'APERÇU DE LA COPIE'}</span>
+                <span className="stage-kicker">{showOriginal ? 'ORIGINAL' : `${pageFindings.length} MASQUE${pageFindings.length > 1 ? 'S' : ''}`}</span>
                 <strong>Page {selectedPage + 1} sur {safeDocument.pages.length}</strong>
               </div>
               <div className="toolbar-actions">
                 <div className="history-controls" aria-label="Historique des modifications">
-                  <button className="icon-button" aria-label="Annuler" title="Annuler" disabled={!canUndo} onClick={() => handleUndo()}><Undo2 size={16} /></button>
+                  <button className="icon-button" aria-label="Annuler" title="Annuler" disabled={!canUndo} onClick={handleUndo}><Undo2 size={16} /></button>
                   <button className="icon-button" aria-label="Rétablir" title="Rétablir" disabled={!canRedo} onClick={handleRedo}><Redo2 size={16} /></button>
                 </div>
                 <button
                   className={`compare-button ${showOriginal ? 'active' : ''}`}
                   onClick={() => {
-                    setShowOriginal((value) => {
-                      if (!value) setManualMode(false)
-                      return !value
-                    })
+                    setShowOriginal((value) => !value)
+                    setManualMode(false)
                   }}
                 >
-                  <Eye size={16} /> {showOriginal ? 'Voir la copie' : "Voir l’original"}
+                  <Eye size={16} /> {showOriginal ? 'Voir les masques' : "Voir l’original"}
                 </button>
                 <div className="zoom-controls" aria-label="Zoom du document">
                   <button className="icon-button" aria-label="Réduire le zoom" disabled={zoom <= 0.75} onClick={() => setZoom((value) => Math.max(0.75, value - 0.25))}><ZoomOut size={16} /></button>
@@ -643,10 +533,6 @@ function App() {
                     <button className="icon-button" aria-label="Page suivante" disabled={selectedPage === safeDocument.pages.length - 1} onClick={() => setSelectedPage((page) => page + 1)}><ChevronRight size={18} /></button>
                   </div>
                 )}
-                <button className={`manual-button ${manualMode ? 'active' : ''}`} onClick={() => setManualMode((active) => !active)}>
-                  {manualMode ? <MousePointer2 size={16} /> : <SquareDashedMousePointer size={16} />}
-                  {manualMode ? 'Annuler le tracé' : 'Tracer une zone'}
-                </button>
               </div>
             </div>
 
@@ -667,30 +553,44 @@ function App() {
                 {currentPage && <img src={currentPage.imageUrl} alt={`Aperçu de la page ${selectedPage + 1}`} draggable={false} />}
                 {pageFindings.map((finding) => {
                   const box = editingBox?.id === finding.id ? editingBox.box : finding.box
+                  const selected = selectedFindingId === finding.id
                   return (
-                    <button
+                    <div
                       key={finding.id}
-                      className={`finding-overlay ${finding.status} ${selectedFindingId === finding.id ? 'selected' : ''}`}
+                      className={`finding-overlay ${selected ? 'selected' : ''}`}
                       style={{
                         left: `${box.x * 100}%`,
                         top: `${box.y * 100}%`,
                         width: `${box.width * 100}%`,
                         height: `${box.height * 100}%`,
                       }}
-                      aria-label={`${finding.label}, ${finding.status}. Utilisez les flèches pour déplacer la zone.`}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`${finding.label}, masquée. Utilisez les flèches pour déplacer la zone ou Suppr pour l'enlever.`}
                       onPointerDown={(event) => startEditing(event, finding, 'move')}
-                      onKeyDown={(event) => nudgeFinding(event, finding)}
-                      onClick={(event) => { event.stopPropagation(); selectFinding(finding) }}
+                      onKeyDown={(event) => handleFindingKey(event, finding)}
+                      onClick={(event) => { event.stopPropagation(); setSelectedFindingId(finding.id) }}
                     >
-                      <span className="overlay-label">{finding.status === 'approved' ? 'MASQUÉ' : finding.id}</span>
-                      {selectedFindingId === finding.id && !showOriginal && (
-                        <i
+                      <button
+                        className="delete-mask"
+                        aria-label={`Supprimer la zone ${finding.label}`}
+                        title="Supprimer cette zone"
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          removeFinding(finding.id)
+                        }}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                      {selected && !showOriginal && (
+                        <button
                           className="resize-handle"
-                          aria-hidden="true"
+                          aria-label="Redimensionner la zone"
                           onPointerDown={(event) => startEditing(event, finding, 'resize')}
                         />
                       )}
-                    </button>
+                    </div>
                   )
                 })}
                 {draftBox && (
@@ -698,127 +598,28 @@ function App() {
                 )}
               </div>
             </div>
-            {manualMode && <div className="drawing-hint"><Focus size={16} /> Cliquez-glissez sur le document pour proposer un masque.</div>}
+            {manualMode && <div className="drawing-hint"><Focus size={16} /> Cliquez-glissez pour tracer un masque.</div>}
           </section>
-
-          <aside className="review-panel">
-            <div className="review-header">
-              <div>
-                <p className="eyebrow">REVUE HUMAINE</p>
-                <h2>{pendingCount > 0 ? `${pendingCount} décision${pendingCount > 1 ? 's' : ''} à prendre` : 'Revue terminée'}</h2>
-              </div>
-              <div className={`review-score ${pendingCount === 0 ? 'complete' : ''}`}>
-                <strong>{findings.length ? Math.round(((approvedCount + dismissedCount) / findings.length) * 100) : 100}%</strong>
-                <span>vérifié</span>
-              </div>
-            </div>
-
-            <div className="decision-summary">
-              <span><i className="pending-dot" /> {pendingCount} en attente</span>
-              <span><i className="approved-dot" /> {approvedCount} masquée{approvedCount > 1 ? 's' : ''}</span>
-              <span><i className="dismissed-dot" /> {dismissedCount} conservée{dismissedCount > 1 ? 's' : ''}</span>
-            </div>
-
-            {selectedFinding && selectedExplanation && (
-              <div className="finding-explanation">
-                <div><Sparkles size={14} /><strong>Pourquoi cette zone ?</strong><span>{selectedExplanation.confidence} %</span></div>
-                <p>{selectedExplanation.summary}</p>
-              </div>
-            )}
-
-            <div className="finding-list">
-              {findings.length === 0 ? (
-                <div className="no-findings"><CheckCircle2 size={28} /><strong>Aucune donnée reconnue</strong><span>Contrôlez tout de même le document et ajoutez des zones manuelles si besoin.</span></div>
-              ) : findings.map((finding) => (
-                <article
-                  key={finding.id}
-                  className={`finding-card ${finding.status} ${selectedFindingId === finding.id ? 'selected' : ''}`}
-                  onClick={() => selectFinding(finding)}
-                >
-                  <div className="finding-card-top">
-                    <span className={`type-icon ${typeTone[finding.type]}`}><EyeOff size={16} /></span>
-                    <div>
-                      <strong>{finding.label}</strong>
-                      <span>Page {finding.pageIndex + 1} · {confidenceLabel(finding.confidence)}</span>
-                    </div>
-                    <button className="locate-button" aria-label="Voir la zone" onClick={(event) => { event.stopPropagation(); selectFinding(finding) }}><Focus size={15} /></button>
-                  </div>
-                  <div className="masked-value">{finding.maskedPreview}<small>{finding.id}</small></div>
-                  {finding.status === 'pending' ? (
-                    <div className="decision-buttons">
-                      <button onClick={(event) => { event.stopPropagation(); decideFinding(finding, 'approved') }}><EyeOff size={15} /> Masquer</button>
-                      <button onClick={(event) => { event.stopPropagation(); decideFinding(finding, 'dismissed') }}><Eye size={15} /> Conserver</button>
-                    </div>
-                  ) : (
-                    <div className={`decision-made ${finding.status}`}>
-                      {finding.status === 'approved' ? <><Check size={15} /> Sera masquée</> : <><Eye size={15} /> Sera conservée</>}
-                      <button onClick={(event) => { event.stopPropagation(); updateFinding(finding.id, 'pending') }}>Annuler</button>
-                    </div>
-                  )}
-                </article>
-              ))}
-            </div>
-
-            <details className="activity-log">
-              <summary><History size={14} /> Journal des actions <span>{activity.length}</span></summary>
-              <div>
-                {activity.length === 0 ? (
-                  <p>Aucune modification pour le moment.</p>
-                ) : [...activity].reverse().slice(0, 6).map((entry) => (
-                  <p key={entry.id}>
-                    {entry.actor === 'agent' ? <Bot size={13} /> : <UserRound size={13} />}
-                    <span>{entry.message}</span>
-                  </p>
-                ))}
-              </div>
-            </details>
-
-            <div className="review-footer">
-              {pendingCount > 1 && <button className="approve-all" onClick={approveAllPending}><ShieldCheck size={16} /> Tout masquer</button>}
-              <button className="export-button" onClick={openExportReview} disabled={!safeDocument}>
-                <span><Download size={18} /> Préparer la copie sûre</span><ArrowRight size={18} />
-              </button>
-              <p><CircleAlert size={13} /> La détection est une aide : votre vérification reste indispensable.</p>
-            </div>
-          </aside>
         </main>
       )}
 
-      {exportDialogOpen && safeDocument && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={() => setExportDialogOpen(false)}>
-          <section className="export-modal" role="dialog" aria-modal="true" aria-labelledby="export-title" onMouseDown={(event) => event.stopPropagation()}>
-            <button className="modal-close" aria-label="Fermer" onClick={() => setExportDialogOpen(false)}><X size={19} /></button>
-            <div className="modal-seal"><ShieldCheck size={27} /></div>
-            <p className="eyebrow">DERNIER CONTRÔLE</p>
-            <h2 id="export-title">Votre copie est prête à être aplatie</h2>
-            <p>Les masques seront fusionnés dans les pixels du nouveau fichier. Le texte caché ne restera pas sélectionnable sous les rectangles.</p>
-            <div className="export-recap">
-              <div><span>Document</span><strong>{safeDocument.name}</strong></div>
-              <div><span>Zones masquées</span><strong>{approvedCount}</strong></div>
-              <div><span>Zones conservées</span><strong>{dismissedCount}</strong></div>
-              <div><span>En attente</span><strong className={pendingCount ? 'warning' : ''}>{pendingCount}</strong></div>
-            </div>
-            <label className="confirmation-line">
-              <input type="checkbox" id="human-confirmation" />
-              <span>J’ai contrôlé le document et je souhaite créer cette copie.</span>
-            </label>
-            <button
-              className="confirm-export"
-              disabled={isExporting}
-              onClick={() => {
-                const checkbox = document.getElementById('human-confirmation') as HTMLInputElement | null
-                if (!checkbox?.checked) {
-                  setNotice('Cochez la confirmation après votre dernier contrôle.')
-                  return
-                }
-                void confirmExport()
-              }}
-            >
-              {isExporting ? 'Création en cours…' : <><Download size={18} /> Télécharger la copie sûre</>}
-            </button>
-            <small><LockKeyhole size={13} /> Généré localement · source inchangée · aucune sauvegarde distante</small>
-          </section>
-        </div>
+      {safeDocument && (
+        <>
+          <button
+            className={`floating-add-button ${manualMode ? 'active' : ''}`}
+            aria-label={manualMode ? 'Annuler le tracé' : 'Tracer une zone'}
+            title={manualMode ? 'Annuler le tracé' : 'Tracer une zone'}
+            onClick={() => {
+              setShowOriginal(false)
+              setManualMode((active) => !active)
+            }}
+          >
+            {manualMode ? <X size={25} /> : <Plus size={28} />}
+          </button>
+          <button className="floating-download-button" disabled={isExporting} onClick={() => void download()}>
+            <Download size={18} /> {isExporting ? 'Downloading…' : 'Download'}
+          </button>
+        </>
       )}
 
       {notice && <div className="toast" role="status"><CheckCircle2 size={17} /> {notice}</div>}

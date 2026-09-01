@@ -59,7 +59,7 @@ export function createDemo(): { document: SafeDocument; findings: Finding[] } {
     ],
   }
 
-  const definitions: Array<Omit<Finding, 'pageIndex' | 'source' | 'status'>> = [
+  const definitions: Array<Omit<Finding, 'pageIndex' | 'source'>> = [
     {
       id: 'NOM-1-01',
       type: 'name',
@@ -116,7 +116,6 @@ export function createDemo(): { document: SafeDocument; findings: Finding[] } {
       ...definition,
       pageIndex: 0,
       source: 'demo',
-      status: 'pending',
     })),
   }
 }

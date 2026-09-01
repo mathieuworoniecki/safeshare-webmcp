@@ -48,7 +48,6 @@ describe('sensitive-data detector', () => {
       confidence: 0.98,
       pageIndex: 0,
       box: { x: 0.1, y: 0.1, width: 0.4, height: 0.1 },
-      status: 'pending',
       source: 'text',
     }
     expect(

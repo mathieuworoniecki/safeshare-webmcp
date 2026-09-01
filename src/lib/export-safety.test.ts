@@ -10,23 +10,22 @@ const safeDocument: SafeDocument = {
 const finding: Finding = {
   id: 'MAIL-1-01', type: 'email', label: 'Adresse e-mail', maskedPreview: 'm•••@example.test',
   confidence: 0.98, pageIndex: 0, box: { x: 0.1, y: 0.2, width: 0.3, height: 0.05 },
-  status: 'approved', source: 'text',
+  source: 'text',
 }
 
 describe('export safety', () => {
-  it('blocks export until every finding has a decision', () => {
-    expect(buildExportSafetyReport(safeDocument, [{ ...finding, status: 'pending' }])).toMatchObject({
+  it('blocks export when a mask has invalid coordinates', () => {
+    expect(buildExportSafetyReport(safeDocument, [{ ...finding, box: { ...finding.box, width: 2 } }])).toMatchObject({
       ready: false,
-      pending: 1,
+      invalidBoxes: 1,
       blockers: 1,
     })
-    expect(buildExportSafetyReport(safeDocument, [finding])).toMatchObject({ ready: true, pending: 0 })
+    expect(buildExportSafetyReport(safeDocument, [finding])).toMatchObject({ ready: true, zones: 1 })
   })
 
-  it('rasterizes approved findings only and keeps padded rectangles inside the page', () => {
+  it('rasterizes every active zone and keeps padded rectangles inside the page', () => {
     const rectangles = getRedactionRects(safeDocument.pages[0], [
       finding,
-      { ...finding, id: 'MAIL-1-02', status: 'dismissed' },
       { ...finding, id: 'MAIL-1-03', box: { x: 0, y: 0, width: 0.1, height: 0.1 } },
     ])
     expect(rectangles).toHaveLength(2)

@@ -4,9 +4,9 @@
 
 ### Share the document. Not your data.
 
-SafeShare finds sensitive information in PDFs and images, lets you review every redaction, and creates a safe copy — entirely in your browser.
+SafeShare finds sensitive information in PDFs and images, draws redaction masks automatically, and creates a safe copy — entirely in your browser.
 
-**Local-first · Human-reviewed · WebMCP-enabled**
+**Local-first · Direct editing · WebMCP-enabled**
 
 </div>
 
@@ -15,8 +15,8 @@ SafeShare finds sensitive information in PDFs and images, lets you review every 
 ## How it works
 
 1. **Import** a PDF or image.
-2. **Review** each detected e-mail, phone number, IBAN, identity reference, date, name or address. Move or resize any mask when needed.
-3. **Export** a flattened copy in which approved redactions are permanently fused into the pixels.
+2. **Adjust** the automatic masks: move, resize, delete or add a rectangle.
+3. Click **Download** to create a flattened copy in which every visible mask is permanently fused into the pixels.
 
 Your original file is never changed or uploaded.
 
@@ -37,20 +37,19 @@ Choose **“Try with a fictional document”** or open [http://localhost:4173/?d
 
 ## Why WebMCP?
 
-SafeShare exposes the actions of its live interface as structured browser tools. An agent can help navigate the privacy review without scraping the page or requiring a separate MCP server.
+SafeShare exposes the actions of its live mask editor as structured browser tools. An agent can help inspect and edit zones without scraping the page or requiring a separate MCP server.
 
 | Tool | What the agent can do |
 |---|---|
-| `get_privacy_review` | Check the review progress |
-| `list_privacy_findings` | List safe metadata about detected zones |
-| `get_next_privacy_finding` | Find the next decision to review |
-| `explain_privacy_finding` | Explain a detection without revealing its value |
-| `focus_privacy_finding` | Show a zone in the visible interface |
-| `decide_privacy_finding` | Mark a zone to redact or preserve |
-| `add_manual_redaction` | Propose a rectangular redaction |
-| `undo_last_review_action` | Reverse the last review change |
-| `run_export_safety_check` | Check blockers without exporting |
-| `prepare_safe_export` | Check blockers and open the final review |
+| `get_mask_editor_state` | Check the editor state |
+| `list_redaction_zones` | List safe metadata about active masks |
+| `focus_redaction_zone` | Show a mask in the visible interface |
+| `explain_redaction_zone` | Explain a detection without revealing its value |
+| `add_redaction_zone` | Add a rectangular mask |
+| `delete_redaction_zone` | Remove a mask |
+| `undo_last_mask_change` | Reverse the last mask change |
+| `run_download_safety_check` | Check blockers without downloading |
+| `prepare_safe_download` | Point the user to the final Download button |
 
 The tools never return document text, file names, images or sensitive values. They also cannot download the result. **Only the user can confirm the final export.**
 
@@ -59,14 +58,14 @@ SafeShare uses the imperative `document.modelContext.registerTool()` API from th
 ## Privacy by design
 
 ```text
-File → local analysis → human review → flattened local copy
+File → local detection → direct mask editing → flattened local copy
           no document upload
 ```
 
 - The document stays in the current browser tab.
 - The source file is never modified or saved by SafeShare.
 - OCR and redaction run on the device.
-- Every review change is reversible and visible in the activity log.
+- Mask edits are reversible with Undo and Redo.
 - Refreshing or closing the tab clears the review.
 - The first OCR use may download a language model, but document pixels are not sent with that request.
 

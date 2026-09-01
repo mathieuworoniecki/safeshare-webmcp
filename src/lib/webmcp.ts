@@ -1,14 +1,13 @@
 import { explainFinding } from './detection'
 import { buildExportSafetyReport, type ExportSafetyReport } from './export-safety'
-import type { AppSnapshot, FindingStatus } from '../types'
+import type { AppSnapshot } from '../types'
 
-export const WEBMCP_TOOL_COUNT = 10
+export const WEBMCP_TOOL_COUNT = 9
 
 export type WebMCPActions = {
   getSnapshot: () => AppSnapshot
   focusFinding: (id: string) => boolean
-  setFindingStatus: (id: string, status: FindingStatus) => boolean
-  setAllPending: (status: Exclude<FindingStatus, 'pending'>) => number
+  deleteFinding: (id: string) => boolean
   addManualRedaction: (input: {
     pageIndex: number
     x: number
@@ -32,7 +31,6 @@ function safeFinding(finding: AppSnapshot['findings'][number]) {
     label: finding.label,
     page: finding.pageIndex + 1,
     confidence: Math.round(finding.confidence * 100),
-    status: finding.status,
     source: finding.source,
   }
 }
@@ -51,24 +49,21 @@ export function registerSafeShareTools(
 
   const tools: WebMCPTool[] = [
     {
-      name: 'get_privacy_review',
-      title: 'Résumer la revue SafeShare',
+      name: 'get_mask_editor_state',
+      title: "Résumer l'éditeur SafeShare",
       description:
-        "Retourne uniquement l'état non sensible de la revue locale : type du fichier, pages, décisions et historique disponible. N'expose jamais le nom ni le texte du document.",
+        "Retourne uniquement l'état non sensible de l'éditeur local : type du fichier, pages, nombre de masques et historique disponible. N'expose jamais le nom ni le texte du document.",
       inputSchema: emptySchema,
       annotations: { readOnlyHint: true, untrustedContentHint: false },
       execute: () => {
         const snapshot = actions.getSnapshot()
-        const counts = snapshot.findings.reduce(
-          (summary, finding) => ({ ...summary, [finding.status]: summary[finding.status] + 1 }),
-          { pending: 0, approved: 0, dismissed: 0 },
-        )
         return result({
           documentLoaded: Boolean(snapshot.document),
           documentKind: snapshot.document?.kind ?? null,
           pageCount: snapshot.document?.pages.length ?? 0,
           scanPhase: snapshot.scanProgress.phase,
-          findings: counts,
+          zoneCount: snapshot.findings.length,
+          selectedPage: snapshot.selectedPage + 1,
           canUndo: snapshot.canUndo,
           canRedo: snapshot.canRedo,
           privacy: 'No document text, file name, image or sensitive value is returned.',
@@ -76,55 +71,54 @@ export function registerSafeShareTools(
       },
     },
     {
-      name: 'list_privacy_findings',
-      title: 'Lister les zones sensibles',
+      name: 'list_redaction_zones',
+      title: 'Lister les zones de masquage',
       description:
-        'Liste les identifiants, catégories, pages, niveaux de confiance et décisions. Les valeurs sensibles restent dans la page.',
+        'Liste les identifiants, catégories, pages et niveaux de confiance des masques actifs. Les valeurs sensibles et les coordonnées restent dans la page.',
       inputSchema: {
         type: 'object',
         properties: {
-          status: {
-            type: 'string',
-            enum: ['all', 'pending', 'approved', 'dismissed'],
-            description: 'Filtre de décision à appliquer.',
-          },
+          page: { type: 'integer', minimum: 1, description: 'Numéro de page facultatif, à partir de 1.' },
         },
         additionalProperties: false,
       },
       annotations: { readOnlyHint: true, untrustedContentHint: false },
-      execute: ({ status = 'all' }) => {
-        const allowed = ['all', 'pending', 'approved', 'dismissed']
-        const safeStatus = typeof status === 'string' && allowed.includes(status) ? status : 'all'
+      execute: ({ page }) => {
+        const requestedPage = typeof page === 'number' ? page : null
         const findings = actions.getSnapshot().findings
-          .filter((finding) => safeStatus === 'all' || finding.status === safeStatus)
+          .filter((finding) => requestedPage === null || finding.pageIndex === requestedPage - 1)
           .map(safeFinding)
         return result({ count: findings.length, findings })
       },
     },
     {
-      name: 'get_next_privacy_finding',
-      title: 'Trouver la prochaine décision',
+      name: 'focus_redaction_zone',
+      title: 'Afficher une zone de masquage',
       description:
-        "Retourne la prochaine zone en attente après la sélection courante, sans modifier l'interface et sans révéler son contenu.",
-      inputSchema: emptySchema,
-      annotations: { readOnlyHint: true, untrustedContentHint: false },
-      execute: () => {
-        const snapshot = actions.getSnapshot()
-        const currentIndex = snapshot.findings.findIndex((finding) => finding.id === snapshot.selectedFindingId)
-        const ordered = [...snapshot.findings.slice(currentIndex + 1), ...snapshot.findings.slice(0, currentIndex + 1)]
-        const next = ordered.find((finding) => finding.status === 'pending')
-        return result({ found: Boolean(next), finding: next ? safeFinding(next) : null })
-      },
-    },
-    {
-      name: 'explain_privacy_finding',
-      title: 'Expliquer une détection',
-      description:
-        "Explique les signaux génériques ayant conduit à une détection. Ne retourne ni la valeur trouvée ni ses coordonnées.",
+        "Sélectionne un masque dans l'interface SafeShare pour permettre son examen visuel. Ne modifie ni la zone ni le document.",
       inputSchema: {
         type: 'object',
         properties: {
-          findingId: { type: 'string', description: 'Identifiant retourné par list_privacy_findings.' },
+          findingId: { type: 'string', description: 'Identifiant retourné par list_redaction_zones.' },
+        },
+        required: ['findingId'],
+        additionalProperties: false,
+      },
+      annotations: { readOnlyHint: false, untrustedContentHint: false },
+      execute: ({ findingId }) => {
+        if (typeof findingId !== 'string') return result({ success: false, error: 'Invalid findingId.' })
+        return result({ success: actions.focusFinding(findingId), findingId })
+      },
+    },
+    {
+      name: 'explain_redaction_zone',
+      title: 'Expliquer une détection',
+      description:
+        "Explique les signaux génériques ayant conduit à tracer une zone automatique. Ne retourne ni la valeur trouvée ni ses coordonnées.",
+      inputSchema: {
+        type: 'object',
+        properties: {
+          findingId: { type: 'string', description: 'Identifiant retourné par list_redaction_zones.' },
         },
         required: ['findingId'],
         additionalProperties: false,
@@ -138,68 +132,10 @@ export function registerSafeShareTools(
       },
     },
     {
-      name: 'focus_privacy_finding',
-      title: 'Afficher une zone sensible',
+      name: 'add_redaction_zone',
+      title: 'Ajouter une zone de masquage',
       description:
-        "Sélectionne une zone dans l'interface SafeShare pour permettre son examen visuel. Cette action ne change pas sa décision.",
-      inputSchema: {
-        type: 'object',
-        properties: {
-          findingId: { type: 'string', description: 'Identifiant retourné par list_privacy_findings.' },
-        },
-        required: ['findingId'],
-        additionalProperties: false,
-      },
-      annotations: { readOnlyHint: false, untrustedContentHint: false },
-      execute: ({ findingId }) => {
-        if (typeof findingId !== 'string') return result({ success: false, error: 'Invalid findingId.' })
-        return result({ success: actions.focusFinding(findingId), findingId })
-      },
-    },
-    {
-      name: 'decide_privacy_finding',
-      title: 'Décider du masquage',
-      description:
-        "Marque une zone comme à masquer ou à conserver, ou applique la décision aux zones en attente. Modifie la revue de manière annulable mais n'exporte rien.",
-      inputSchema: {
-        type: 'object',
-        properties: {
-          findingId: {
-            type: 'string',
-            description: "Identifiant d'une zone, ou ALL_PENDING pour toutes les zones en attente.",
-          },
-          decision: {
-            type: 'string',
-            enum: ['approve', 'dismiss'],
-            description: 'approve masque la zone ; dismiss la conserve visible.',
-          },
-        },
-        required: ['findingId', 'decision'],
-        additionalProperties: false,
-      },
-      annotations: { readOnlyHint: false, untrustedContentHint: false },
-      execute: ({ findingId, decision }) => {
-        if (typeof findingId !== 'string' || (decision !== 'approve' && decision !== 'dismiss')) {
-          return result({ success: false, error: 'Invalid findingId or decision.' })
-        }
-        const status = decision === 'approve' ? 'approved' : 'dismissed'
-        if (findingId === 'ALL_PENDING') {
-          const changed = actions.setAllPending(status)
-          return result({ success: true, changed, status, reversible: true })
-        }
-        return result({
-          success: actions.setFindingStatus(findingId, status),
-          findingId,
-          status,
-          reversible: true,
-        })
-      },
-    },
-    {
-      name: 'add_manual_redaction',
-      title: 'Proposer une zone manuelle',
-      description:
-        "Ajoute une proposition rectangulaire en coordonnées normalisées. La zone reste en attente jusqu'à sa validation et aucun contenu n'est exporté.",
+        "Ajoute immédiatement un masque rectangulaire en coordonnées normalisées. Modifie l'éditeur de manière annulable mais ne télécharge rien.",
       inputSchema: {
         type: 'object',
         properties: {
@@ -224,23 +160,42 @@ export function registerSafeShareTools(
           width: Number(width),
           height: Number(height),
         })
-        return result({ success: Boolean(id), findingId: id, status: id ? 'pending' : null, reversible: true })
+        return result({ success: Boolean(id), findingId: id, reversible: true })
       },
     },
     {
-      name: 'undo_last_review_action',
-      title: 'Annuler la dernière action',
+      name: 'delete_redaction_zone',
+      title: 'Supprimer une zone de masquage',
       description:
-        "Annule la dernière modification apportée aux zones ou aux décisions. Ne modifie jamais le fichier source.",
+        "Supprime un masque actif de l'éditeur. La suppression est visible et annulable. Ne modifie jamais le fichier source.",
+      inputSchema: {
+        type: 'object',
+        properties: {
+          findingId: { type: 'string', description: 'Identifiant retourné par list_redaction_zones.' },
+        },
+        required: ['findingId'],
+        additionalProperties: false,
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, untrustedContentHint: false },
+      execute: ({ findingId }) => {
+        if (typeof findingId !== 'string') return result({ success: false, error: 'Invalid findingId.' })
+        return result({ success: actions.deleteFinding(findingId), findingId, reversible: true })
+      },
+    },
+    {
+      name: 'undo_last_mask_change',
+      title: 'Annuler la dernière modification',
+      description:
+        "Annule le dernier ajout, déplacement, redimensionnement ou suppression de masque. Ne modifie jamais le fichier source.",
       inputSchema: emptySchema,
       annotations: { readOnlyHint: false, untrustedContentHint: false },
       execute: () => result({ success: actions.undoLastAction() }),
     },
     {
-      name: 'run_export_safety_check',
-      title: "Contrôler la sûreté de l'export",
+      name: 'run_download_safety_check',
+      title: 'Contrôler le téléchargement',
       description:
-        "Vérifie les décisions en attente et les coordonnées de masquage. N'ouvre aucune boîte de dialogue et ne télécharge rien.",
+        "Vérifie le document et les coordonnées des masques actifs. Ne modifie pas l'interface et ne télécharge rien.",
       inputSchema: emptySchema,
       annotations: { readOnlyHint: true, untrustedContentHint: false },
       execute: () => {
@@ -249,20 +204,20 @@ export function registerSafeShareTools(
       },
     },
     {
-      name: 'prepare_safe_export',
-      title: "Préparer l'export sécurisé",
+      name: 'prepare_safe_download',
+      title: 'Préparer le téléchargement sécurisé',
       description:
-        "Exécute le contrôle de sûreté et ouvre la confirmation visuelle uniquement si la revue est complète. Ne télécharge jamais le document : une confirmation humaine reste obligatoire.",
+        "Exécute le contrôle de sûreté et attire l'attention sur le bouton Download. Ne télécharge jamais le document : le clic humain reste obligatoire.",
       inputSchema: emptySchema,
       annotations: { readOnlyHint: false, untrustedContentHint: false },
       execute: () => {
         const report = actions.prepareExport()
         return result({
           ...report,
-          requiresHumanConfirmation: true,
+          requiresHumanClick: true,
           message: report.ready
-            ? 'The final dialog is open. The user must confirm the download.'
-            : 'The export remains blocked until every issue is resolved.',
+            ? 'Ready. The user must click Download in the visible page.'
+            : 'The download remains blocked until every issue is resolved.',
         })
       },
     },

@@ -20,14 +20,12 @@ const snapshot: AppSnapshot = {
       confidence: 0.98,
       pageIndex: 0,
       box: { x: 0.1, y: 0.1, width: 0.2, height: 0.1 },
-      status: 'pending',
       source: 'text',
     },
   ],
   selectedFindingId: null,
   selectedPage: 0,
   scanProgress: { phase: 'ready', value: 100, message: 'ready' },
-  exportDialogOpen: false,
   canUndo: true,
   canRedo: false,
 }
@@ -37,7 +35,7 @@ afterEach(() => {
 })
 
 describe('WebMCP integration', () => {
-  it('registers ten scoped tools and removes them through AbortSignal', async () => {
+  it('registers nine scoped tools and removes them through AbortSignal', async () => {
     const tools: WebMCPTool[] = []
     const signals: AbortSignal[] = []
     Object.defineProperty(document, 'modelContext', {
@@ -52,20 +50,19 @@ describe('WebMCP integration', () => {
     const actions: WebMCPActions = {
       getSnapshot: () => snapshot,
       focusFinding: vi.fn(() => true),
-      setFindingStatus: vi.fn(() => true),
-      setAllPending: vi.fn(() => 1),
+      deleteFinding: vi.fn(() => true),
       addManualRedaction: vi.fn(() => 'ZONE-1-01'),
       undoLastAction: vi.fn(() => true),
       prepareExport: vi.fn(() => ({
-        ready: false, blockers: 1, pending: 1, approved: 0, dismissed: 0, invalidBoxes: 0,
-        guarantees: [], issues: ['one pending'],
+        ready: false, blockers: 1, zones: 1, invalidBoxes: 1,
+        guarantees: [], issues: ['one invalid zone'],
       })),
     }
     let status: WebMCPStatus = 'unsupported'
     const cleanup = registerSafeShareTools(actions, (next) => { status = next })
     await vi.waitFor(() => expect(status).toBe('available'))
 
-    expect(tools).toHaveLength(10)
+    expect(tools).toHaveLength(9)
     expect(tools.every((tool) => tool.inputSchema)).toBe(true)
     cleanup()
     expect(signals.every((signal) => signal.aborted)).toBe(true)
@@ -80,20 +77,19 @@ describe('WebMCP integration', () => {
     const actions = {
       getSnapshot: () => snapshot,
       focusFinding: () => true,
-      setFindingStatus: () => true,
-      setAllPending: () => 1,
+      deleteFinding: () => true,
       addManualRedaction: () => 'ZONE-1-01',
       undoLastAction: () => true,
       prepareExport: () => ({
-        ready: false, blockers: 1, pending: 1, approved: 0, dismissed: 0, invalidBoxes: 0,
-        guarantees: [], issues: ['one pending'],
+        ready: false, blockers: 1, zones: 1, invalidBoxes: 1,
+        guarantees: [], issues: ['one invalid zone'],
       }),
     }
     registerSafeShareTools(actions, () => undefined)
-    await vi.waitFor(() => expect(tools).toHaveLength(10))
+    await vi.waitFor(() => expect(tools).toHaveLength(9))
 
-    const summary = await tools.find((tool) => tool.name === 'get_privacy_review')!.execute({})
-    const findings = await tools.find((tool) => tool.name === 'list_privacy_findings')!.execute({})
+    const summary = await tools.find((tool) => tool.name === 'get_mask_editor_state')!.execute({})
+    const findings = await tools.find((tool) => tool.name === 'list_redaction_zones')!.execute({})
     const combined = JSON.stringify([summary, findings])
     expect(combined).not.toContain('lea-martin-confidentiel')
     expect(combined).not.toContain('example.fr')

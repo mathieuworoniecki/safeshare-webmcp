@@ -164,7 +164,6 @@ export function createFinding(
     confidence: match.confidence,
     pageIndex,
     box: clampBox(box),
-    status: 'pending',
     source,
     reason: match.reason,
   }
