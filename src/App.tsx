@@ -12,6 +12,7 @@ import {
   RotateCcw,
   Redo2,
   ScanText,
+  Share2,
   Sparkles,
   Trash2,
   Undo2,
@@ -24,6 +25,7 @@ import { clampBox } from './lib/detection'
 import { createDemo } from './lib/demo'
 import { buildExportSafetyReport } from './lib/export-safety'
 import { locale, tr } from './lib/i18n'
+import { shareFileNatively, supportsNativeFileShare } from './lib/native-share'
 import {
   registerSafeShareTools,
   WEBMCP_TOOL_COUNT,
@@ -59,6 +61,10 @@ function App() {
   const [selectedPage, setSelectedPage] = useState(0)
   const [scanProgress, setScanProgress] = useState<ScanProgress>(initialProgress)
   const [isExporting, setIsExporting] = useState(false)
+  const [isSharing, setIsSharing] = useState(false)
+  const [isPreparingShare, setIsPreparingShare] = useState(false)
+  const [sharePreparationFailed, setSharePreparationFailed] = useState(false)
+  const [shareFile, setShareFile] = useState<File | null>(null)
   const [webMCPStatus, setWebMCPStatus] = useState<WebMCPStatus>('registering')
   const [dragging, setDragging] = useState(false)
   const [draftBox, setDraftBox] = useState<BoundingBox | null>(null)
@@ -101,6 +107,12 @@ function App() {
   }
 
   const currentPage = safeDocument?.pages[selectedPage]
+  const nativeShareSupported = useMemo(
+    () => safeDocument
+      ? supportsNativeFileShare(safeDocument.kind === 'image' ? 'image' : 'pdf')
+      : false,
+    [safeDocument],
+  )
 
   const removeFinding = useCallback((id: string) => {
     if (!snapshotRef.current.findings.some((finding) => finding.id === id)) return false
@@ -163,6 +175,37 @@ function App() {
 
   useEffect(() => registerSafeShareTools(webMCPActions.current, setWebMCPStatus), [])
   useEffect(() => () => scanAbortRef.current?.abort(), [])
+
+  useEffect(() => {
+    let active = true
+    let timeout: ReturnType<typeof setTimeout> | null = null
+    setShareFile(null)
+    setSharePreparationFailed(false)
+    if (!safeDocument || !nativeShareSupported) {
+      setIsPreparingShare(false)
+      return () => { active = false }
+    }
+
+    setIsPreparingShare(true)
+    timeout = setTimeout(() => {
+      void import('./lib/document')
+        .then(({ createRedactedFile }) => createRedactedFile(safeDocument, findings))
+        .then((file) => {
+          if (active) setShareFile(file)
+        })
+        .catch(() => {
+          if (active) setSharePreparationFailed(true)
+        })
+        .finally(() => {
+          if (active) setIsPreparingShare(false)
+        })
+    }, 450)
+
+    return () => {
+      active = false
+      if (timeout) clearTimeout(timeout)
+    }
+  }, [findings, nativeShareSupported, safeDocument])
 
   useEffect(() => {
     if (!notice) return
@@ -263,6 +306,28 @@ function App() {
         : tr('Download failed.', 'Téléchargement impossible.'))
     } finally {
       setIsExporting(false)
+    }
+  }
+
+  const share = async () => {
+    if (!safeDocument || !shareFile) return
+    const report = buildExportSafetyReport(safeDocument, findings)
+    if (!report.ready) {
+      setNotice(report.issues[0] ?? tr('The file cannot be shared.', 'Le fichier ne peut pas être partagé.'))
+      return
+    }
+    setIsSharing(true)
+    try {
+      await shareFileNatively(shareFile)
+      setNotice(tr('File shared.', 'Fichier partagé.'))
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+      setNotice(tr(
+        'Sharing is unavailable. You can still download the file.',
+        'Le partage est indisponible. Vous pouvez toujours télécharger le fichier.',
+      ))
+    } finally {
+      setIsSharing(false)
     }
   }
 
@@ -667,9 +732,28 @@ function App() {
       )}
 
       {safeDocument && (
-        <button className="floating-download-button" disabled={isExporting} onClick={() => void download()}>
-          <Download size={18} /> {isExporting ? tr('Downloading…', 'Téléchargement…') : tr('Download', 'Télécharger')}
-        </button>
+        <div className="floating-export-actions" aria-label={tr('Export actions', 'Actions d’export')}>
+          <button
+            className="export-action-button download-action"
+            disabled={isExporting || isSharing}
+            onClick={() => void download()}
+          >
+            <Download size={18} /> {isExporting ? tr('Downloading…', 'Téléchargement…') : tr('Download', 'Télécharger')}
+          </button>
+          {nativeShareSupported && !sharePreparationFailed && (
+            <button
+              className="export-action-button share-action"
+              disabled={isExporting || isSharing || isPreparingShare || !shareFile}
+              onClick={() => void share()}
+            >
+              <Share2 size={17} /> {isPreparingShare
+                ? tr('Preparing…', 'Préparation…')
+                : isSharing
+                  ? tr('Sharing…', 'Partage…')
+                  : tr('Share…', 'Partager…')}
+            </button>
+          )}
+        </div>
       )}
 
       {notice && <div className="toast" role="status"><CheckCircle2 size={17} /> {notice}</div>}

@@ -386,7 +386,7 @@ function downloadBlob(blob: Blob, fileName: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1_000)
 }
 
-export async function exportRedactedDocument(safeDocument: SafeDocument, findings: Finding[]) {
+export async function createRedactedFile(safeDocument: SafeDocument, findings: Finding[]) {
   const baseName = safeDocument.name.replace(/\.[^.]+$/, '')
 
   if (safeDocument.kind === 'image') {
@@ -396,8 +396,7 @@ export async function exportRedactedDocument(safeDocument: SafeDocument, finding
       'Unable to generate the redacted image.',
       "Impossible de générer l'image expurgée.",
     ))
-    downloadBlob(blob, `${baseName}-safeshare.png`)
-    return
+    return new File([blob], `${baseName}-safeshare.png`, { type: 'image/png' })
   }
 
   const output = await PDFDocument.create()
@@ -409,5 +408,10 @@ export async function exportRedactedDocument(safeDocument: SafeDocument, finding
     pdfPage.drawImage(embedded, { x: 0, y: 0, width: page.width, height: page.height })
   }
   const bytes = await output.save()
-  downloadBlob(new Blob([bytes], { type: 'application/pdf' }), `${baseName}-safeshare.pdf`)
+  return new File([bytes], `${baseName}-safeshare.pdf`, { type: 'application/pdf' })
+}
+
+export async function exportRedactedDocument(safeDocument: SafeDocument, findings: Finding[]) {
+  const file = await createRedactedFile(safeDocument, findings)
+  downloadBlob(file, file.name)
 }

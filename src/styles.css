@@ -250,9 +250,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, [role='button']:focu
 .page-surface.show-original { cursor: default; }
 .page-surface.show-original .finding-overlay { opacity: 0; pointer-events: none; }
 .draft-overlay { position: absolute; border: 2px dashed var(--forest); background: rgba(75, 145, 114, .18); pointer-events: none; }
-.floating-download-button { position: fixed; z-index: 80; left: 50%; bottom: 22px; min-width: 164px; min-height: 48px; padding: 0 22px; display: flex; align-items: center; justify-content: center; gap: 10px; transform: translateX(-50%); color: white; background: var(--ink); border: 0; border-top: 3px solid #efb33e; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 800; letter-spacing: .02em; box-shadow: 0 8px 20px rgba(23,33,29,.24); }
-.floating-download-button:hover:not(:disabled) { background: var(--forest); transform: translate(-50%, -2px); }
-.floating-download-button:disabled { opacity: .65; cursor: wait; }
+.floating-export-actions { position: fixed; z-index: 80; left: 50%; bottom: 22px; display: flex; overflow: hidden; transform: translateX(-50%); color: white; background: var(--ink); border-top: 3px solid #efb33e; border-radius: 4px; box-shadow: 0 8px 20px rgba(23,33,29,.24); }
+.export-action-button { min-height: 48px; padding: 0 22px; display: flex; align-items: center; justify-content: center; gap: 9px; color: white; background: var(--ink); border: 0; cursor: pointer; font-size: 12px; font-weight: 800; letter-spacing: .02em; white-space: nowrap; }
+.export-action-button + .export-action-button { border-left: 1px solid rgba(255,255,255,.18); }
+.download-action { min-width: 164px; }
+.share-action { min-width: 132px; background: #29483d; }
+.export-action-button:hover:not(:disabled) { background: var(--forest); }
+.export-action-button:focus-visible { position: relative; z-index: 1; outline: 2px solid #efb33e; outline-offset: -4px; }
+.export-action-button:disabled { opacity: .58; cursor: wait; }
 .toast { position: fixed; z-index: 150; left: 50%; bottom: 82px; transform: translateX(-50%); max-width: min(90vw, 600px); padding: 10px 14px; display: flex; gap: 8px; align-items: center; color: white; background: #1f3028; border-left: 3px solid #efb33e; border-radius: 2px; box-shadow: 0 8px 22px rgba(0,0,0,.2); font-size: 10px; animation: toast-in .18s ease-out; }
 
 @keyframes pulse { 50% { opacity: .4; transform: scale(.8); } }
@@ -289,7 +294,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, [role='button']:focu
   .toolbar-actions { width: 100%; justify-content: flex-end; }
   .history-controls { display: none; }
   .canvas-scroll { padding: 22px 16px 110px; }
-  .floating-download-button { bottom: 16px; min-height: 46px; min-width: 148px; }
+  .floating-export-actions { bottom: 16px; max-width: calc(100vw - 24px); }
+  .export-action-button { min-height: 46px; padding: 0 16px; }
+  .download-action { min-width: 142px; }.share-action { min-width: 124px; }
   .opacity-control { grid-template-columns: auto 64px 28px; padding: 0 6px; gap: 6px; }.opacity-control span { font-size: 8px; }.opacity-control input { width: 64px; }
   .toast { bottom: 78px; }
 }

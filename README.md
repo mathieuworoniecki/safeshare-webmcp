@@ -16,11 +16,13 @@ SafeShare finds sensitive information in PDFs and images, draws redaction masks 
 
 1. **Import** a PDF or image.
 2. **Adjust** the automatic masks: move, resize or delete them. Drag anywhere outside a mask to draw a new one.
-3. Click **Download** to create a flattened copy in which every visible mask is permanently fused into the pixels.
+3. Choose **Download** or, on supported browsers, **Share…** to create a flattened copy in which every visible mask is permanently fused into the pixels.
 
 The opacity slider changes only the editing preview. Downloaded masks are always fully opaque.
 
 Your original file is never changed or uploaded.
+
+Native sharing opens the operating system's share sheet after a human click. The available destinations depend on the browser, device and installed apps. If file sharing is unsupported, SafeShare simply keeps the Download action. The selected destination receives the finished copy directly; SafeShare does not upload it to its own server.
 
 ## Try it
 
@@ -55,7 +57,7 @@ SafeShare exposes the actions of its live mask editor as structured browser tool
 | `run_download_safety_check` | Check blockers without downloading |
 | `prepare_safe_download` | Point the user to the final Download button |
 
-The tools never return document text, file names, images or sensitive values. They also cannot download the result. **Only the user can confirm the final export.**
+The tools never return document text, file names, images or sensitive values. They also cannot download or share the result. **Only the user can confirm the final export.**
 
 SafeShare uses the imperative `document.modelContext.registerTool()` API from the [WebMCP proposal](https://github.com/webmachinelearning/webmcp) and follows [OpenAI’s WebMCP guidance](https://learn.chatgpt.com/docs/webmcp).
 
