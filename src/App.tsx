@@ -479,7 +479,7 @@ function App() {
   )
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${safeDocument ? 'has-document' : ''}`}>
       {!safeDocument && (
         <header className="topbar">
           <a className="brand" href="#main" aria-label={tr('SafeShare, go to content', 'SafeShare, aller au contenu')}>

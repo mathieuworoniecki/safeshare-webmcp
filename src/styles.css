@@ -250,7 +250,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, [role='button']:focu
 .page-surface.show-original { cursor: default; }
 .page-surface.show-original .finding-overlay { opacity: 0; pointer-events: none; }
 .draft-overlay { position: absolute; border: 2px dashed var(--forest); background: rgba(75, 145, 114, .18); pointer-events: none; }
-.floating-export-actions { position: fixed; z-index: 80; left: 50%; bottom: 22px; display: flex; overflow: hidden; transform: translateX(-50%); color: white; background: var(--ink); border-top: 3px solid #efb33e; border-radius: 4px; box-shadow: 0 8px 20px rgba(23,33,29,.24); }
+.floating-export-actions { position: fixed; z-index: 80; left: calc(50% + 115px); bottom: 22px; display: flex; overflow: hidden; transform: translateX(-50%); color: white; background: var(--ink); border-top: 3px solid #efb33e; border-radius: 4px; box-shadow: 0 8px 20px rgba(23,33,29,.24); }
 .export-action-button { min-height: 48px; padding: 0 22px; display: flex; align-items: center; justify-content: center; gap: 9px; color: white; background: var(--ink); border: 0; cursor: pointer; font-size: 12px; font-weight: 800; letter-spacing: .02em; white-space: nowrap; }
 .export-action-button + .export-action-button { border-left: 1px solid rgba(255,255,255,.18); }
 .download-action { min-width: 164px; }
@@ -259,12 +259,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, [role='button']:focu
 .export-action-button:focus-visible { position: relative; z-index: 1; outline: 2px solid #efb33e; outline-offset: -4px; }
 .export-action-button:disabled { opacity: .58; cursor: wait; }
 .toast { position: fixed; z-index: 150; left: 50%; bottom: 82px; transform: translateX(-50%); max-width: min(90vw, 600px); padding: 10px 14px; display: flex; gap: 8px; align-items: center; color: white; background: #1f3028; border-left: 3px solid #efb33e; border-radius: 2px; box-shadow: 0 8px 22px rgba(0,0,0,.2); font-size: 10px; animation: toast-in .18s ease-out; }
+.app-shell.has-document .toast { left: calc(50% + 115px); }
 
 @keyframes pulse { 50% { opacity: .4; transform: scale(.8); } }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 8px); } }
 
 @media (max-width: 1120px) {
   .review-workspace { grid-template-columns: 180px minmax(380px, 1fr); }
+  .floating-export-actions { left: calc(50% + 90px); }
+  .app-shell.has-document .toast { left: calc(50% + 90px); }
   .page-thumb { grid-template-columns: 37px 1fr auto; }.thumb-image { width: 37px; height: 49px; }
   .canvas-scroll { padding: 28px 28px 110px; }
   .compare-button { width: 34px; padding: 0; justify-content: center; font-size: 0; }
@@ -280,6 +283,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, [role='button']:focu
   .review-workspace { height: auto; min-height: 100vh; grid-template-columns: 1fr; overflow: visible; }
   .document-rail { display: none; }
   .document-stage { min-height: 76vh; }
+  .floating-export-actions { left: 50%; }
+  .app-shell.has-document .toast { left: 50%; }
 }
 
 @media (max-width: 560px) {
