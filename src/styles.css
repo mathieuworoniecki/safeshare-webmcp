@@ -188,7 +188,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, [role='button']:focu
 .scan-card.error .progress-track span { background: var(--coral); }
 
 .review-workspace {
-  height: calc(100vh - 58px);
+  height: 100vh;
   display: grid;
   grid-template-columns: 230px minmax(430px, 1fr);
   min-height: 620px;
@@ -219,7 +219,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, [role='button']:focu
 
 .document-stage { min-width: 0; min-height: 0; display: flex; flex-direction: column; background-color: #d9ded8; background-image: linear-gradient(rgba(37,76,62,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(37,76,62,.045) 1px, transparent 1px); background-size: 24px 24px; }
 .stage-toolbar { min-height: 58px; padding: 9px 16px; display: flex; justify-content: space-between; align-items: center; background: #f8f9f6; border-bottom: 1px solid #bdc4bd; }
-.stage-toolbar > div:first-child { display: flex; flex-direction: column; gap: 4px; }
+.editor-toolbar-identity { display: flex; align-items: center; gap: 18px; }
+.editor-brand { padding-right: 18px; border-right: 1px solid #c9cfca; font-size: 15px; }
+.editor-brand .brand-mark { width: 29px; height: 29px; }
+.stage-page-meta { display: flex; flex-direction: column; gap: 3px; }
 .stage-kicker { color: #476055; font: 600 9px 'IBM Plex Mono', monospace; letter-spacing: .11em; }
 .stage-toolbar strong { font-size: 12px; }
 .toolbar-actions, .page-controls { display: flex; align-items: center; gap: 5px; }
@@ -269,7 +272,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, [role='button']:focu
   .intro-panel { text-align: center; }.intro-copy { margin-left: auto; margin-right: auto; }.eyebrow, .trust-row { justify-content: center; }
   .drop-zone { min-height: 480px; max-width: 680px; width: 100%; margin: auto; }
   .scan-card { grid-column: 1; margin: -20px auto 0; width: min(680px, 100%); }
-  .review-workspace { height: auto; min-height: calc(100vh - 58px); grid-template-columns: 1fr; overflow: visible; }
+  .review-workspace { height: auto; min-height: 100vh; grid-template-columns: 1fr; overflow: visible; }
   .document-rail { display: none; }
   .document-stage { min-height: 76vh; }
 }
@@ -279,8 +282,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, [role='button']:focu
   .webmcp-status { font-size: 0; }.webmcp-status .status-dot { display: block; }
   .empty-workspace { padding: 34px 16px; }.intro-panel h1 { font-size: 42px; }.intro-copy { font-size: 15px; }.trust-row { flex-direction: column; align-items: center; }
   .drop-zone { min-height: 450px; padding: 34px 24px; border-radius: 4px; }.drop-zone h2 { font-size: 21px; }
-  .review-workspace { min-height: calc(100vh - 60px); }.document-stage { min-height: 65vh; }
-  .stage-toolbar { padding: 9px 12px; }.stage-toolbar > div:first-child { display: none; }.stage-toolbar { justify-content: flex-end; }
+  .review-workspace { min-height: 100vh; }.document-stage { min-height: 65vh; }
+  .stage-toolbar { padding: 8px 12px; flex-wrap: wrap; gap: 8px; }
+  .editor-toolbar-identity { width: 100%; justify-content: space-between; }
+  .editor-brand { padding-right: 0; border-right: 0; }
+  .toolbar-actions { width: 100%; justify-content: flex-end; }
   .history-controls { display: none; }
   .canvas-scroll { padding: 22px 16px 110px; }
   .floating-download-button { bottom: 16px; min-height: 46px; min-width: 148px; }

@@ -373,19 +373,19 @@ function App() {
 
   return (
     <div className="app-shell">
-      <header className="topbar">
-        <a className="brand" href="#main" aria-label="SafeShare, aller au contenu">
-          <span className="brand-mark"><ScanText size={20} strokeWidth={2.2} /></span>
-          <span>SafeShare</span>
-        </a>
-        <div className="editor-summary">
-          {safeDocument ? `${findings.length} zone${findings.length > 1 ? 's' : ''} masquée${findings.length > 1 ? 's' : ''}` : 'Masquage local et automatique'}
-        </div>
-        <div className={`webmcp-status ${webMCPStatus}`} title="État de l’intégration WebMCP">
-          <span className="status-dot" />
-          {statusCopy[webMCPStatus]}
-        </div>
-      </header>
+      {!safeDocument && (
+        <header className="topbar">
+          <a className="brand" href="#main" aria-label="SafeShare, aller au contenu">
+            <span className="brand-mark"><ScanText size={20} strokeWidth={2.2} /></span>
+            <span>SafeShare</span>
+          </a>
+          <div className="editor-summary">Masquage local et automatique</div>
+          <div className={`webmcp-status ${webMCPStatus}`} title="État de l’intégration WebMCP">
+            <span className="status-dot" />
+            {statusCopy[webMCPStatus]}
+          </div>
+        </header>
+      )}
 
       {!safeDocument ? (
         <main className="empty-workspace" id="main">
@@ -498,9 +498,15 @@ function App() {
 
           <section className="document-stage">
             <div className="stage-toolbar">
-              <div>
-                <span className="stage-kicker">{showOriginal ? 'ORIGINAL' : `${pageFindings.length} MASQUE${pageFindings.length > 1 ? 'S' : ''}`}</span>
-                <strong>Page {selectedPage + 1} sur {safeDocument.pages.length}</strong>
+              <div className="editor-toolbar-identity">
+                <a className="brand editor-brand" href="#main" aria-label="SafeShare, aller au document">
+                  <span className="brand-mark"><ScanText size={18} strokeWidth={2.2} /></span>
+                  <span>SafeShare</span>
+                </a>
+                <div className="stage-page-meta">
+                  <span className="stage-kicker">{showOriginal ? 'ORIGINAL' : `${pageFindings.length} MASQUE${pageFindings.length > 1 ? 'S' : ''}`}</span>
+                  <strong>Page {selectedPage + 1} sur {safeDocument.pages.length}</strong>
+                </div>
               </div>
               <div className="toolbar-actions">
                 <div className="history-controls" aria-label="Historique des modifications">
