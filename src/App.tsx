@@ -66,6 +66,7 @@ function App() {
   const [showOriginal, setShowOriginal] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const canvasScrollRef = useRef<HTMLDivElement>(null)
   const pageSurfaceRef = useRef<HTMLDivElement>(null)
   const dragStartRef = useRef<{ x: number; y: number } | null>(null)
   const editRef = useRef<{
@@ -161,6 +162,19 @@ function App() {
     const timeout = setTimeout(() => setNotice(null), 4_000)
     return () => clearTimeout(timeout)
   }, [notice])
+
+  useEffect(() => {
+    const canvas = canvasScrollRef.current
+    if (!canvas || !safeDocument) return
+    const handleWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return
+      event.preventDefault()
+      const direction = event.deltaY < 0 ? 1 : -1
+      setZoom((value) => Math.max(0.75, Math.min(1.75, Math.round((value + direction * 0.1) * 100) / 100)))
+    }
+    canvas.addEventListener('wheel', handleWheel, { passive: false })
+    return () => canvas.removeEventListener('wheel', handleWheel)
+  }, [safeDocument])
 
   const loadFile = useCallback(async (file: File) => {
     scanAbortRef.current?.abort()
@@ -532,7 +546,7 @@ function App() {
                   />
                   <output>{Math.round(maskOpacity * 100)}%</output>
                 </label>
-                <div className="zoom-controls" aria-label="Zoom du document">
+                <div className="zoom-controls" aria-label="Zoom du document" title="Ctrl/⌘ + molette pour zoomer">
                   <button className="icon-button" aria-label="Réduire le zoom" disabled={zoom <= 0.75} onClick={() => setZoom((value) => Math.max(0.75, value - 0.25))}><ZoomOut size={16} /></button>
                   <span>{Math.round(zoom * 100)} %</span>
                   <button className="icon-button" aria-label="Augmenter le zoom" disabled={zoom >= 1.75} onClick={() => setZoom((value) => Math.min(1.75, value + 0.25))}><ZoomIn size={16} /></button>
@@ -546,7 +560,7 @@ function App() {
               </div>
             </div>
 
-            <div className="canvas-scroll">
+            <div className="canvas-scroll" ref={canvasScrollRef}>
               <div
                 ref={pageSurfaceRef}
                 className={`page-surface ${showOriginal ? 'show-original' : 'draw-ready'}`}
