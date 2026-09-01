@@ -1,3 +1,5 @@
+import { tr } from './i18n'
+
 export type SupportedFileKind = 'pdf' | 'png' | 'jpeg' | 'webp'
 
 export function detectFileSignature(bytes: Uint8Array): SupportedFileKind | null {
@@ -18,7 +20,10 @@ export function detectFileSignature(bytes: Uint8Array): SupportedFileKind | null
 export async function validateUploadedFile(file: File): Promise<SupportedFileKind> {
   const bytes = new Uint8Array(await file.slice(0, 16).arrayBuffer())
   const kind = detectFileSignature(bytes)
-  if (!kind) throw new Error('Le contenu du fichier ne correspond pas à un PDF, PNG, JPG ou WEBP valide.')
+  if (!kind) throw new Error(tr(
+    'The file content is not a valid PDF, PNG, JPG or WEBP document.',
+    'Le contenu du fichier ne correspond pas à un PDF, PNG, JPG ou WEBP valide.',
+  ))
 
   const declaredKind = file.type === 'application/pdf'
     ? 'pdf'
@@ -31,7 +36,10 @@ export async function validateUploadedFile(file: File): Promise<SupportedFileKin
           : null
 
   if (declaredKind && declaredKind !== kind) {
-    throw new Error('Le type déclaré du fichier ne correspond pas à son contenu.')
+    throw new Error(tr(
+      'The declared file type does not match its content.',
+      'Le type déclaré du fichier ne correspond pas à son contenu.',
+    ))
   }
   return kind
 }

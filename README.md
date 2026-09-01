@@ -35,7 +35,9 @@ npm run dev
 
 Open [http://localhost:4173](http://localhost:4173).
 
-Choose **“Try with a fictional document”** or open [http://localhost:4173/?demo=1](http://localhost:4173/?demo=1) to load the demo directly.
+Choose **“Try a sample document”** or open [http://localhost:4173/?demo=1](http://localhost:4173/?demo=1) to load the demo directly.
+
+SafeShare uses the browser language automatically: French browsers get French; every other language currently falls back to English. To test a language explicitly, add [`?lang=en`](http://localhost:4173/?demo=1&lang=en) or [`?lang=fr`](http://localhost:4173/?demo=1&lang=fr) to the URL.
 
 ## Why WebMCP?
 

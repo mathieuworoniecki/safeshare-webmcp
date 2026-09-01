@@ -1,5 +1,6 @@
 import { explainFinding } from './detection'
 import { buildExportSafetyReport, type ExportSafetyReport } from './export-safety'
+import { tr } from './i18n'
 import type { AppSnapshot } from '../types'
 
 export const WEBMCP_TOOL_COUNT = 9
@@ -39,7 +40,7 @@ export function registerSafeShareTools(
   actions: WebMCPActions,
   onStatus: (status: WebMCPStatus) => void,
 ) {
-  if (!document.modelContext) {
+  if (typeof document.modelContext?.registerTool !== 'function') {
     onStatus('unsupported')
     return () => undefined
   }
@@ -50,9 +51,11 @@ export function registerSafeShareTools(
   const tools: WebMCPTool[] = [
     {
       name: 'get_mask_editor_state',
-      title: "Résumer l'éditeur SafeShare",
-      description:
+      title: tr('Summarize the SafeShare editor', "Résumer l'éditeur SafeShare"),
+      description: tr(
+        'Returns only non-sensitive local editor state: file type, pages, mask count and available history. Never exposes the document name or text.',
         "Retourne uniquement l'état non sensible de l'éditeur local : type du fichier, pages, nombre de masques et historique disponible. N'expose jamais le nom ni le texte du document.",
+      ),
       inputSchema: emptySchema,
       annotations: { readOnlyHint: true, untrustedContentHint: false },
       execute: () => {
@@ -72,13 +75,19 @@ export function registerSafeShareTools(
     },
     {
       name: 'list_redaction_zones',
-      title: 'Lister les zones de masquage',
-      description:
+      title: tr('List redaction areas', 'Lister les zones de masquage'),
+      description: tr(
+        'Lists the identifiers, categories, pages and confidence levels of active masks. Sensitive values and coordinates remain inside the page.',
         'Liste les identifiants, catégories, pages et niveaux de confiance des masques actifs. Les valeurs sensibles et les coordonnées restent dans la page.',
+      ),
       inputSchema: {
         type: 'object',
         properties: {
-          page: { type: 'integer', minimum: 1, description: 'Numéro de page facultatif, à partir de 1.' },
+          page: {
+            type: 'integer',
+            minimum: 1,
+            description: tr('Optional page number, starting at 1.', 'Numéro de page facultatif, à partir de 1.'),
+          },
         },
         additionalProperties: false,
       },
@@ -93,13 +102,15 @@ export function registerSafeShareTools(
     },
     {
       name: 'focus_redaction_zone',
-      title: 'Afficher une zone de masquage',
-      description:
+      title: tr('Show a redaction area', 'Afficher une zone de masquage'),
+      description: tr(
+        'Selects a mask in the SafeShare interface for visual review. Does not modify the area or document.',
         "Sélectionne un masque dans l'interface SafeShare pour permettre son examen visuel. Ne modifie ni la zone ni le document.",
+      ),
       inputSchema: {
         type: 'object',
         properties: {
-          findingId: { type: 'string', description: 'Identifiant retourné par list_redaction_zones.' },
+          findingId: { type: 'string', description: tr('Identifier returned by list_redaction_zones.', 'Identifiant retourné par list_redaction_zones.') },
         },
         required: ['findingId'],
         additionalProperties: false,
@@ -112,13 +123,15 @@ export function registerSafeShareTools(
     },
     {
       name: 'explain_redaction_zone',
-      title: 'Expliquer une détection',
-      description:
+      title: tr('Explain a detection', 'Expliquer une détection'),
+      description: tr(
+        'Explains the generic signals used to draw an automatic area. Returns neither the detected value nor its coordinates.',
         "Explique les signaux génériques ayant conduit à tracer une zone automatique. Ne retourne ni la valeur trouvée ni ses coordonnées.",
+      ),
       inputSchema: {
         type: 'object',
         properties: {
-          findingId: { type: 'string', description: 'Identifiant retourné par list_redaction_zones.' },
+          findingId: { type: 'string', description: tr('Identifier returned by list_redaction_zones.', 'Identifiant retourné par list_redaction_zones.') },
         },
         required: ['findingId'],
         additionalProperties: false,
@@ -133,13 +146,15 @@ export function registerSafeShareTools(
     },
     {
       name: 'add_redaction_zone',
-      title: 'Ajouter une zone de masquage',
-      description:
+      title: tr('Add a redaction area', 'Ajouter une zone de masquage'),
+      description: tr(
+        'Immediately adds a rectangular mask using normalized coordinates. Makes a reversible editor change but downloads nothing.',
         "Ajoute immédiatement un masque rectangulaire en coordonnées normalisées. Modifie l'éditeur de manière annulable mais ne télécharge rien.",
+      ),
       inputSchema: {
         type: 'object',
         properties: {
-          page: { type: 'integer', minimum: 1, description: 'Numéro de page, à partir de 1.' },
+          page: { type: 'integer', minimum: 1, description: tr('Page number, starting at 1.', 'Numéro de page, à partir de 1.') },
           x: { type: 'number', minimum: 0, maximum: 1 },
           y: { type: 'number', minimum: 0, maximum: 1 },
           width: { type: 'number', exclusiveMinimum: 0, maximum: 1 },
@@ -165,13 +180,15 @@ export function registerSafeShareTools(
     },
     {
       name: 'delete_redaction_zone',
-      title: 'Supprimer une zone de masquage',
-      description:
+      title: tr('Delete a redaction area', 'Supprimer une zone de masquage'),
+      description: tr(
+        'Deletes an active mask from the editor. The deletion is visible and reversible. Never modifies the source file.',
         "Supprime un masque actif de l'éditeur. La suppression est visible et annulable. Ne modifie jamais le fichier source.",
+      ),
       inputSchema: {
         type: 'object',
         properties: {
-          findingId: { type: 'string', description: 'Identifiant retourné par list_redaction_zones.' },
+          findingId: { type: 'string', description: tr('Identifier returned by list_redaction_zones.', 'Identifiant retourné par list_redaction_zones.') },
         },
         required: ['findingId'],
         additionalProperties: false,
@@ -184,18 +201,22 @@ export function registerSafeShareTools(
     },
     {
       name: 'undo_last_mask_change',
-      title: 'Annuler la dernière modification',
-      description:
+      title: tr('Undo the last mask change', 'Annuler la dernière modification'),
+      description: tr(
+        'Undoes the last mask addition, move, resize or deletion. Never modifies the source file.',
         "Annule le dernier ajout, déplacement, redimensionnement ou suppression de masque. Ne modifie jamais le fichier source.",
+      ),
       inputSchema: emptySchema,
       annotations: { readOnlyHint: false, untrustedContentHint: false },
       execute: () => result({ success: actions.undoLastAction() }),
     },
     {
       name: 'run_download_safety_check',
-      title: 'Contrôler le téléchargement',
-      description:
+      title: tr('Check download safety', 'Contrôler le téléchargement'),
+      description: tr(
+        'Checks the document and active mask coordinates. Does not modify the interface or download anything.',
         "Vérifie le document et les coordonnées des masques actifs. Ne modifie pas l'interface et ne télécharge rien.",
+      ),
       inputSchema: emptySchema,
       annotations: { readOnlyHint: true, untrustedContentHint: false },
       execute: () => {
@@ -205,9 +226,11 @@ export function registerSafeShareTools(
     },
     {
       name: 'prepare_safe_download',
-      title: 'Préparer le téléchargement sécurisé',
-      description:
+      title: tr('Prepare a safe download', 'Préparer le téléchargement sécurisé'),
+      description: tr(
+        'Runs the safety check and draws attention to the Download button. Never downloads the document: a human click remains required.',
         "Exécute le contrôle de sûreté et attire l'attention sur le bouton Download. Ne télécharge jamais le document : le clic humain reste obligatoire.",
+      ),
       inputSchema: emptySchema,
       annotations: { readOnlyHint: false, untrustedContentHint: false },
       execute: () => {
@@ -216,8 +239,14 @@ export function registerSafeShareTools(
           ...report,
           requiresHumanClick: true,
           message: report.ready
-            ? 'Ready. The user must click Download in the visible page.'
-            : 'The download remains blocked until every issue is resolved.',
+            ? tr(
+                'Ready. The user must click Download in the visible page.',
+                'Prêt. La personne doit cliquer sur Télécharger dans la page visible.',
+              )
+            : tr(
+                'The download remains blocked until every issue is resolved.',
+                'Le téléchargement reste bloqué tant que chaque problème n’est pas résolu.',
+              ),
         })
       },
     },

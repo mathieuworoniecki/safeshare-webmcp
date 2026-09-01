@@ -23,6 +23,7 @@ import { useReviewHistory } from './hooks/useReviewHistory'
 import { clampBox } from './lib/detection'
 import { createDemo } from './lib/demo'
 import { buildExportSafetyReport } from './lib/export-safety'
+import { locale, tr } from './lib/i18n'
 import {
   registerSafeShareTools,
   WEBMCP_TOOL_COUNT,
@@ -34,20 +35,21 @@ import type { AppSnapshot, BoundingBox, Finding, SafeDocument, ScanProgress } fr
 const initialProgress: ScanProgress = {
   phase: 'idle',
   value: 0,
-  message: 'En attente d’un document',
+  message: tr('Waiting for a document', 'En attente d’un document'),
 }
 
 const statusCopy: Record<WebMCPStatus, string> = {
-  registering: 'Connexion WebMCP…',
-  available: `${WEBMCP_TOOL_COUNT} outils WebMCP actifs`,
-  unsupported: 'Aperçu sans WebMCP',
-  error: 'WebMCP indisponible',
+  registering: tr('Connecting WebMCP…', 'Connexion WebMCP…'),
+  available: tr(`${WEBMCP_TOOL_COUNT} WebMCP tools active`, `${WEBMCP_TOOL_COUNT} outils WebMCP actifs`),
+  unsupported: tr('Preview without WebMCP', 'Aperçu sans WebMCP'),
+  error: tr('WebMCP unavailable', 'WebMCP indisponible'),
 }
 
 function formatBytes(size: number) {
-  if (size < 1024) return `${size} o`
-  if (size < 1024 * 1024) return `${Math.round(size / 1024)} Ko`
-  return `${(size / (1024 * 1024)).toFixed(1)} Mo`
+  const format = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 })
+  if (size < 1024) return `${format.format(size)} ${tr('B', 'o')}`
+  if (size < 1024 * 1024) return `${format.format(size / 1024)} ${tr('KB', 'Ko')}`
+  return `${format.format(size / (1024 * 1024))} ${tr('MB', 'Mo')}`
 }
 
 function App() {
@@ -116,13 +118,16 @@ function App() {
     const finding: Finding = {
       id,
       type: 'manual',
-      label: 'Zone manuelle',
-      maskedPreview: 'Sélection visuelle',
+      label: tr('Manual area', 'Zone manuelle'),
+      maskedPreview: tr('Visual selection', 'Sélection visuelle'),
       confidence: 1,
       pageIndex: input.pageIndex,
       box,
       source: 'manual',
-      reason: 'Zone rectangulaire ajoutée explicitement dans l’éditeur.',
+      reason: tr(
+        'Rectangular area explicitly added in the editor.',
+        'Zone rectangulaire ajoutée explicitement dans l’éditeur.',
+      ),
     }
     commitFindings((current) => [...current, finding])
     setSelectedPage(input.pageIndex)
@@ -149,7 +154,9 @@ function App() {
     prepareExport: () => {
       const snapshot = snapshotRef.current
       const report = buildExportSafetyReport(snapshot.document, snapshot.findings)
-      setNotice(report.ready ? 'Prêt. Cliquez sur Download pour créer la copie.' : report.issues[0])
+      setNotice(report.ready
+        ? tr('Ready. Click Download to create the copy.', 'Prêt. Cliquez sur Download pour créer la copie.')
+        : report.issues[0])
       return report
     },
   })
@@ -184,7 +191,11 @@ function App() {
     resetFindings([])
     setSelectedFindingId(null)
     setSelectedPage(0)
-    setScanProgress({ phase: 'reading', value: 1, message: 'Analyse locale en cours' })
+    setScanProgress({
+      phase: 'reading',
+      value: 1,
+      message: tr('Running local scan', 'Analyse locale en cours'),
+    })
     try {
       const { processFile } = await import('./lib/document')
       const result = await processFile(file, setScanProgress, controller.signal)
@@ -194,10 +205,15 @@ function App() {
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         setScanProgress(initialProgress)
-        setNotice('Analyse annulée. Aucun contenu n’a été conservé.')
+        setNotice(tr(
+          'Scan cancelled. No content was kept.',
+          'Analyse annulée. Aucun contenu n’a été conservé.',
+        ))
         return
       }
-      const message = error instanceof Error ? error.message : 'Le document n’a pas pu être analysé.'
+      const message = error instanceof Error
+        ? error.message
+        : tr('The document could not be scanned.', 'Le document n’a pas pu être analysé.')
       setScanProgress({ phase: 'error', value: 0, message })
       setNotice(message)
     } finally {
@@ -211,8 +227,15 @@ function App() {
     resetFindings(demo.findings)
     setSelectedFindingId(demo.findings[0]?.id ?? null)
     setSelectedPage(0)
-    setScanProgress({ phase: 'ready', value: 100, message: '6 zones masquées automatiquement' })
-    setNotice('Démo chargée : les 6 zones sensibles sont déjà masquées.')
+    setScanProgress({
+      phase: 'ready',
+      value: 100,
+      message: tr('6 areas masked automatically', '6 zones masquées automatiquement'),
+    })
+    setNotice(tr(
+      'Demo loaded: all 6 sensitive areas are already masked.',
+      'Démo chargée : les 6 zones sensibles sont déjà masquées.',
+    ))
   }, [resetFindings])
 
   useEffect(() => {
@@ -223,16 +246,21 @@ function App() {
     if (!safeDocument) return
     const report = buildExportSafetyReport(safeDocument, findings)
     if (!report.ready) {
-      setNotice(report.issues[0] ?? 'Le téléchargement est impossible.')
+      setNotice(report.issues[0] ?? tr('The download is unavailable.', 'Le téléchargement est impossible.'))
       return
     }
     setIsExporting(true)
     try {
       const { exportRedactedDocument } = await import('./lib/document')
       await exportRedactedDocument(safeDocument, findings)
-      setNotice('Copie téléchargée. Le document original est inchangé.')
+      setNotice(tr(
+        'Copy downloaded. The original document is unchanged.',
+        'Copie téléchargée. Le document original est inchangé.',
+      ))
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Téléchargement impossible.')
+      setNotice(error instanceof Error
+        ? error.message
+        : tr('Download failed.', 'Téléchargement impossible.'))
     } finally {
       setIsExporting(false)
     }
@@ -241,14 +269,14 @@ function App() {
   const handleUndo = useCallback(() => {
     if (!snapshotRef.current.canUndo) return false
     undo()
-    setNotice('Modification annulée.')
+    setNotice(tr('Change undone.', 'Modification annulée.'))
     return true
   }, [undo])
 
   const handleRedo = useCallback(() => {
     if (!snapshotRef.current.canRedo) return false
     redo()
-    setNotice('Modification rétablie.')
+    setNotice(tr('Change restored.', 'Modification rétablie.'))
     return true
   }, [redo])
 
@@ -347,7 +375,7 @@ function App() {
     const id = addManualFinding({ ...draftBox, pageIndex: selectedPage })
     dragStartRef.current = null
     setDraftBox(null)
-    if (!id) setNotice('Tracez une zone un peu plus grande.')
+    if (!id) setNotice(tr('Draw a slightly larger area.', 'Tracez une zone un peu plus grande.'))
   }
 
   const cancelPointerInteraction = () => {
@@ -389,12 +417,12 @@ function App() {
     <div className="app-shell">
       {!safeDocument && (
         <header className="topbar">
-          <a className="brand" href="#main" aria-label="SafeShare, aller au contenu">
+          <a className="brand" href="#main" aria-label={tr('SafeShare, go to content', 'SafeShare, aller au contenu')}>
             <span className="brand-mark"><ScanText size={20} strokeWidth={2.2} /></span>
             <span>SafeShare</span>
           </a>
-          <div className="editor-summary">Masquage local et automatique</div>
-          <div className={`webmcp-status ${webMCPStatus}`} title="État de l’intégration WebMCP">
+          <div className="editor-summary">{tr('Local, automatic masking', 'Masquage local et automatique')}</div>
+          <div className={`webmcp-status ${webMCPStatus}`} title={tr('WebMCP integration status', 'État de l’intégration WebMCP')}>
             <span className="status-dot" />
             {statusCopy[webMCPStatus]}
           </div>
@@ -404,15 +432,18 @@ function App() {
       {!safeDocument ? (
         <main className="empty-workspace" id="main">
           <section className="intro-panel">
-            <p className="eyebrow"><LockKeyhole size={15} /> CONFIDENTIALITÉ LOCALE</p>
-            <h1>Partagez le document.<br /><span>Pas vos données.</span></h1>
+            <p className="eyebrow"><LockKeyhole size={15} /> {tr('LOCAL PRIVACY', 'CONFIDENTIALITÉ LOCALE')}</p>
+            <h1>{tr('Share the document.', 'Partagez le document.')}<br /><span>{tr('Not your data.', 'Pas vos données.')}</span></h1>
             <p className="intro-copy">
-              SafeShare trace automatiquement les zones sensibles. Déplacez, redimensionnez ou supprimez les masques, puis téléchargez votre copie.
+              {tr(
+                'SafeShare automatically outlines sensitive areas. Move, resize or delete masks, then download your copy.',
+                'SafeShare trace automatiquement les zones sensibles. Déplacez, redimensionnez ou supprimez les masques, puis téléchargez votre copie.',
+              )}
             </p>
             <div className="trust-row">
-              <span><Check size={15} /> Aucun envoi serveur</span>
-              <span><Check size={15} /> Masques automatiques</span>
-              <span><Check size={15} /> Export aplati</span>
+              <span><Check size={15} /> {tr('No server upload', 'Aucun envoi serveur')}</span>
+              <span><Check size={15} /> {tr('Automatic masks', 'Masques automatiques')}</span>
+              <span><Check size={15} /> {tr('Flattened export', 'Export aplati')}</span>
             </div>
           </section>
 
@@ -439,16 +470,19 @@ function App() {
               hidden
             />
             <div className="drop-icon"><FileUp size={30} /></div>
-            <h2>Déposez un document ici</h2>
-            <p>PDF, PNG, JPG ou WEBP · 18 Mo maximum</p>
+            <h2>{tr('Drop a document here', 'Déposez un document ici')}</h2>
+            <p>{tr('PDF, PNG, JPG or WEBP · 18 MB maximum', 'PDF, PNG, JPG ou WEBP · 18 Mo maximum')}</p>
             <button className="primary-button" onClick={() => fileInputRef.current?.click()}>
-              Choisir un fichier <ArrowRight size={17} />
+              {tr('Choose a file', 'Choisir un fichier')} <ArrowRight size={17} />
             </button>
-            <div className="or-separator"><span>ou</span></div>
+            <div className="or-separator"><span>{tr('or', 'ou')}</span></div>
             <button className="demo-button" onClick={loadDemo}>
-              <Sparkles size={16} /> Essayer avec un document fictif
+              <Sparkles size={16} /> {tr('Try a sample document', 'Essayer avec un document fictif')}
             </button>
-            <p className="local-note"><LockKeyhole size={14} /> Le traitement se fait dans cet onglet, sur votre appareil.</p>
+            <p className="local-note"><LockKeyhole size={14} /> {tr(
+              'Processing stays in this tab, on your device.',
+              'Le traitement se fait dans cet onglet, sur votre appareil.',
+            )}</p>
           </section>
 
           {scanProgress.phase !== 'idle' && (
@@ -456,7 +490,7 @@ function App() {
               <div>
                 <FileSearch size={20} /><strong>{scanProgress.message}</strong>
                 {scanProgress.phase !== 'error' && scanProgress.phase !== 'ready' && (
-                  <button className="scan-cancel" onClick={() => scanAbortRef.current?.abort()}>Annuler</button>
+                  <button className="scan-cancel" onClick={() => scanAbortRef.current?.abort()}>{tr('Cancel', 'Annuler')}</button>
                 )}
               </div>
               <div className="progress-track"><span style={{ width: `${scanProgress.value}%` }} /></div>
@@ -470,9 +504,9 @@ function App() {
               <div className="file-icon">{safeDocument.kind === 'image' ? 'IMG' : 'PDF'}</div>
               <div>
                 <strong title={safeDocument.name}>{safeDocument.name}</strong>
-                <span>{safeDocument.pages.length} page{safeDocument.pages.length > 1 ? 's' : ''} · {formatBytes(safeDocument.size)}</span>
+                <span>{safeDocument.pages.length} {safeDocument.pages.length === 1 ? tr('page', 'page') : tr('pages', 'pages')} · {formatBytes(safeDocument.size)}</span>
               </div>
-              <button className="icon-button" aria-label="Changer de document" onClick={() => fileInputRef.current?.click()}><RotateCcw size={17} /></button>
+              <button className="icon-button" aria-label={tr('Change document', 'Changer de document')} onClick={() => fileInputRef.current?.click()}><RotateCcw size={17} /></button>
             </div>
             <input
               ref={fileInputRef}
@@ -486,7 +520,7 @@ function App() {
               hidden
             />
 
-            <div className="rail-heading"><span>PAGES</span><span>{safeDocument.pages.length}</span></div>
+            <div className="rail-heading"><span>{tr('PAGES', 'PAGES')}</span><span>{safeDocument.pages.length}</span></div>
             <div className="page-list">
               {safeDocument.pages.map((page) => {
                 const pageCount = findings.filter((finding) => finding.pageIndex === page.index).length
@@ -497,7 +531,7 @@ function App() {
                     onClick={() => setSelectedPage(page.index)}
                   >
                     <span className="thumb-image"><img src={page.imageUrl} alt="" /></span>
-                    <span>Page {page.index + 1}</span>
+                    <span>{tr('Page', 'Page')} {page.index + 1}</span>
                     {pageCount > 0 && <i>{pageCount}</i>}
                   </button>
                 )
@@ -506,55 +540,57 @@ function App() {
 
             <div className="privacy-seal">
               <LockKeyhole size={16} />
-              <div><strong>100 % local</strong><span>Rien ne quitte cet appareil</span></div>
+              <div><strong>{tr('100% local', '100 % local')}</strong><span>{tr('Nothing leaves this device', 'Rien ne quitte cet appareil')}</span></div>
             </div>
           </aside>
 
           <section className="document-stage">
             <div className="stage-toolbar">
               <div className="editor-toolbar-identity">
-                <a className="brand editor-brand" href="#main" aria-label="SafeShare, aller au document">
+                <a className="brand editor-brand" href="#main" aria-label={tr('SafeShare, go to document', 'SafeShare, aller au document')}>
                   <span className="brand-mark"><ScanText size={18} strokeWidth={2.2} /></span>
                   <span>SafeShare</span>
                 </a>
                 <div className="stage-page-meta">
-                  <span className="stage-kicker">{showOriginal ? 'ORIGINAL' : `${pageFindings.length} MASQUE${pageFindings.length > 1 ? 'S' : ''}`}</span>
-                  <strong>Page {selectedPage + 1} sur {safeDocument.pages.length}</strong>
+                  <span className="stage-kicker">{showOriginal
+                    ? tr('ORIGINAL', 'ORIGINAL')
+                    : `${pageFindings.length} ${pageFindings.length === 1 ? tr('MASK', 'MASQUE') : tr('MASKS', 'MASQUES')}`}</span>
+                  <strong>{tr('Page', 'Page')} {selectedPage + 1} {tr('of', 'sur')} {safeDocument.pages.length}</strong>
                 </div>
               </div>
               <div className="toolbar-actions">
-                <div className="history-controls" aria-label="Historique des modifications">
-                  <button className="icon-button" aria-label="Annuler" title="Annuler" disabled={!canUndo} onClick={handleUndo}><Undo2 size={16} /></button>
-                  <button className="icon-button" aria-label="Rétablir" title="Rétablir" disabled={!canRedo} onClick={handleRedo}><Redo2 size={16} /></button>
+                <div className="history-controls" aria-label={tr('Change history', 'Historique des modifications')}>
+                  <button className="icon-button" aria-label={tr('Undo', 'Annuler')} title={tr('Undo', 'Annuler')} disabled={!canUndo} onClick={handleUndo}><Undo2 size={16} /></button>
+                  <button className="icon-button" aria-label={tr('Redo', 'Rétablir')} title={tr('Redo', 'Rétablir')} disabled={!canRedo} onClick={handleRedo}><Redo2 size={16} /></button>
                 </div>
                 <button
                   className={`compare-button ${showOriginal ? 'active' : ''}`}
                   onClick={() => setShowOriginal((value) => !value)}
                 >
-                  <Eye size={16} /> {showOriginal ? 'Voir les masques' : "Voir l’original"}
+                  <Eye size={16} /> {showOriginal ? tr('Show masks', 'Voir les masques') : tr('Show original', 'Voir l’original')}
                 </button>
-                <label className="opacity-control" title="Opacité de l’aperçu des masques">
-                  <span>Opacité de l’aperçu</span>
+                <label className="opacity-control" title={tr('Mask preview opacity', 'Opacité de l’aperçu des masques')}>
+                  <span>{tr('Preview opacity', 'Opacité de l’aperçu')}</span>
                   <input
                     type="range"
                     min="15"
                     max="85"
                     step="5"
                     value={Math.round(maskOpacity * 100)}
-                    aria-label="Opacité de l’aperçu des masques"
+                    aria-label={tr('Mask preview opacity', 'Opacité de l’aperçu des masques')}
                     onChange={(event) => setMaskOpacity(Number(event.target.value) / 100)}
                   />
                   <output>{Math.round(maskOpacity * 100)}%</output>
                 </label>
-                <div className="zoom-controls" aria-label="Zoom du document" title="Ctrl/⌘ + molette pour zoomer">
-                  <button className="icon-button" aria-label="Réduire le zoom" disabled={zoom <= 0.75} onClick={() => setZoom((value) => Math.max(0.75, value - 0.25))}><ZoomOut size={16} /></button>
+                <div className="zoom-controls" aria-label={tr('Document zoom', 'Zoom du document')} title={tr('Ctrl/⌘ + wheel to zoom', 'Ctrl/⌘ + molette pour zoomer')}>
+                  <button className="icon-button" aria-label={tr('Zoom out', 'Réduire le zoom')} disabled={zoom <= 0.75} onClick={() => setZoom((value) => Math.max(0.75, value - 0.25))}><ZoomOut size={16} /></button>
                   <span>{Math.round(zoom * 100)} %</span>
-                  <button className="icon-button" aria-label="Augmenter le zoom" disabled={zoom >= 1.75} onClick={() => setZoom((value) => Math.min(1.75, value + 0.25))}><ZoomIn size={16} /></button>
+                  <button className="icon-button" aria-label={tr('Zoom in', 'Augmenter le zoom')} disabled={zoom >= 1.75} onClick={() => setZoom((value) => Math.min(1.75, value + 0.25))}><ZoomIn size={16} /></button>
                 </div>
                 {safeDocument.pages.length > 1 && (
                   <div className="page-controls">
-                    <button className="icon-button" aria-label="Page précédente" disabled={selectedPage === 0} onClick={() => setSelectedPage((page) => page - 1)}><ChevronLeft size={18} /></button>
-                    <button className="icon-button" aria-label="Page suivante" disabled={selectedPage === safeDocument.pages.length - 1} onClick={() => setSelectedPage((page) => page + 1)}><ChevronRight size={18} /></button>
+                    <button className="icon-button" aria-label={tr('Previous page', 'Page précédente')} disabled={selectedPage === 0} onClick={() => setSelectedPage((page) => page - 1)}><ChevronLeft size={18} /></button>
+                    <button className="icon-button" aria-label={tr('Next page', 'Page suivante')} disabled={selectedPage === safeDocument.pages.length - 1} onClick={() => setSelectedPage((page) => page + 1)}><ChevronRight size={18} /></button>
                   </div>
                 )}
               </div>
@@ -574,7 +610,7 @@ function App() {
                 onPointerUp={finishPointerInteraction}
                 onPointerCancel={cancelPointerInteraction}
               >
-                {currentPage && <img src={currentPage.imageUrl} alt={`Aperçu de la page ${selectedPage + 1}`} draggable={false} />}
+                {currentPage && <img src={currentPage.imageUrl} alt={tr(`Preview of page ${selectedPage + 1}`, `Aperçu de la page ${selectedPage + 1}`)} draggable={false} />}
                 {pageFindings.map((finding) => {
                   const box = editingBox?.id === finding.id ? editingBox.box : finding.box
                   const selected = selectedFindingId === finding.id
@@ -591,15 +627,18 @@ function App() {
                       }}
                       role="button"
                       tabIndex={0}
-                      aria-label={`${finding.label}, masquée. Utilisez les flèches pour déplacer la zone ou Suppr pour l'enlever.`}
+                      aria-label={tr(
+                        `${finding.label}, masked. Use the arrow keys to move the area or Delete to remove it.`,
+                        `${finding.label}, masquée. Utilisez les flèches pour déplacer la zone ou Suppr pour l'enlever.`,
+                      )}
                       onPointerDown={(event) => startEditing(event, finding, 'move')}
                       onKeyDown={(event) => handleFindingKey(event, finding)}
                       onClick={(event) => { event.stopPropagation(); setSelectedFindingId(finding.id) }}
                     >
                       <button
                         className="delete-mask"
-                        aria-label={`Supprimer la zone ${finding.label}`}
-                        title="Supprimer cette zone"
+                        aria-label={tr(`Delete ${finding.label} area`, `Supprimer la zone ${finding.label}`)}
+                        title={tr('Delete this area', 'Supprimer cette zone')}
                         onPointerDown={(event) => event.stopPropagation()}
                         onClick={(event) => {
                           event.stopPropagation()
@@ -611,7 +650,7 @@ function App() {
                       {selected && !showOriginal && (
                         <button
                           className="resize-handle"
-                          aria-label="Redimensionner la zone"
+                          aria-label={tr('Resize area', 'Redimensionner la zone')}
                           onPointerDown={(event) => startEditing(event, finding, 'resize')}
                         />
                       )}
@@ -629,7 +668,7 @@ function App() {
 
       {safeDocument && (
         <button className="floating-download-button" disabled={isExporting} onClick={() => void download()}>
-          <Download size={18} /> {isExporting ? 'Downloading…' : 'Download'}
+          <Download size={18} /> {isExporting ? tr('Downloading…', 'Téléchargement…') : tr('Download', 'Télécharger')}
         </button>
       )}
 

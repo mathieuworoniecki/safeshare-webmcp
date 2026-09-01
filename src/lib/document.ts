@@ -6,6 +6,7 @@ import { createWorker } from 'tesseract.js'
 import { createFinding, deduplicateFindings, findSensitiveMatches } from './detection'
 import { getRedactionRects } from './export-safety'
 import { validateUploadedFile } from './file-validation'
+import { tr } from './i18n'
 import type { DocumentPage, Finding, SafeDocument, ScanProgress } from '../types'
 
 GlobalWorkerOptions.workerSrc = pdfWorker
@@ -44,13 +45,13 @@ async function imageFromUrl(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image()
     image.onload = () => resolve(image)
-    image.onerror = () => reject(new Error("Impossible de lire l'image."))
+    image.onerror = () => reject(new Error(tr('Unable to read the image.', "Impossible de lire l'image.")))
     image.src = url
   })
 }
 
 function throwIfAborted(signal?: AbortSignal) {
-  if (signal?.aborted) throw new DOMException('Analyse annulée.', 'AbortError')
+  if (signal?.aborted) throw new DOMException(tr('Scan cancelled.', 'Analyse annulée.'), 'AbortError')
 }
 
 async function createOcrSession(signal?: AbortSignal): Promise<OcrSession> {
@@ -62,7 +63,10 @@ async function createOcrSession(signal?: AbortSignal): Promise<OcrSession> {
         activeProgress({
           phase: 'scanning',
           value: Math.round((message.progress ?? 0) * 100),
-          message: `Lecture locale de la page ${activePage + 1}`,
+          message: tr(
+            `Reading page ${activePage + 1} locally`,
+            `Lecture locale de la page ${activePage + 1}`,
+          ),
         })
       }
     },
@@ -198,11 +202,18 @@ function scanPdfTextItems(
 
 async function processPdf(file: File, onProgress: ProgressReporter, signal?: AbortSignal) {
   throwIfAborted(signal)
-  onProgress({ phase: 'reading', value: 5, message: 'Ouverture du PDF en mémoire' })
+  onProgress({
+    phase: 'reading',
+    value: 5,
+    message: tr('Opening PDF in memory', 'Ouverture du PDF en mémoire'),
+  })
   const bytes = new Uint8Array(await file.arrayBuffer())
   const pdf = await getDocument({ data: bytes }).promise
   if (pdf.numPages > MAX_PAGES) {
-    throw new Error(`Ce prototype accepte jusqu’à ${MAX_PAGES} pages par document.`)
+    throw new Error(tr(
+      `This prototype accepts up to ${MAX_PAGES} pages per document.`,
+      `Ce prototype accepte jusqu’à ${MAX_PAGES} pages par document.`,
+    ))
   }
 
   const pages: DocumentPage[] = []
@@ -218,12 +229,18 @@ async function processPdf(file: File, onProgress: ProgressReporter, signal?: Abo
       canvas.width = Math.round(viewport.width)
       canvas.height = Math.round(viewport.height)
       const context = canvas.getContext('2d', { alpha: false })
-      if (!context) throw new Error("Le navigateur ne permet pas d'afficher ce PDF.")
+      if (!context) throw new Error(tr(
+        'The browser cannot display this PDF.',
+        "Le navigateur ne permet pas d'afficher ce PDF.",
+      ))
 
       onProgress({
         phase: 'rendering',
         value: Math.round((pageNumber / pdf.numPages) * 45),
-        message: `Préparation de la page ${pageNumber}/${pdf.numPages}`,
+        message: tr(
+          `Preparing page ${pageNumber}/${pdf.numPages}`,
+          `Préparation de la page ${pageNumber}/${pdf.numPages}`,
+        ),
       })
       await page.render({ canvasContext: context, viewport }).promise
       throwIfAborted(signal)
@@ -263,7 +280,11 @@ async function processPdf(file: File, onProgress: ProgressReporter, signal?: Abo
 
 async function processImage(file: File, onProgress: ProgressReporter, signal?: AbortSignal) {
   throwIfAborted(signal)
-  onProgress({ phase: 'reading', value: 8, message: "Ouverture de l'image en mémoire" })
+  onProgress({
+    phase: 'reading',
+    value: 8,
+    message: tr('Opening image in memory', "Ouverture de l'image en mémoire"),
+  })
   const objectUrl = URL.createObjectURL(file)
   try {
     const image = await imageFromUrl(objectUrl)
@@ -273,7 +294,10 @@ async function processImage(file: File, onProgress: ProgressReporter, signal?: A
     canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
     canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
     const context = canvas.getContext('2d', { alpha: false })
-    if (!context) throw new Error("Le navigateur ne permet pas d'afficher cette image.")
+    if (!context) throw new Error(tr(
+      'The browser cannot display this image.',
+      "Le navigateur ne permet pas d'afficher cette image.",
+    ))
     context.fillStyle = '#fff'
     context.fillRect(0, 0, canvas.width, canvas.height)
     context.drawImage(image, 0, 0, canvas.width, canvas.height)
@@ -302,7 +326,10 @@ async function processImage(file: File, onProgress: ProgressReporter, signal?: A
 
 export async function processFile(file: File, onProgress: ProgressReporter, signal?: AbortSignal) {
   if (file.size > MAX_FILE_SIZE) {
-    throw new Error('Le fichier dépasse la limite locale de 18 Mo.')
+    throw new Error(tr(
+      'The file exceeds the local 18 MB limit.',
+      'Le fichier dépasse la limite locale de 18 Mo.',
+    ))
   }
   const kind = await validateUploadedFile(file)
   throwIfAborted(signal)
@@ -323,7 +350,10 @@ export async function processFile(file: File, onProgress: ProgressReporter, sign
   onProgress({
     phase: 'ready',
     value: 100,
-    message: `${result.findings.length} zone${result.findings.length > 1 ? 's' : ''} à vérifier`,
+    message: tr(
+      `${result.findings.length} ${result.findings.length === 1 ? 'area' : 'areas'} to review`,
+      `${result.findings.length} zone${result.findings.length > 1 ? 's' : ''} à vérifier`,
+    ),
   })
   return { document: safeDocument, findings: result.findings }
 }
@@ -334,7 +364,7 @@ async function flattenPage(page: DocumentPage, findings: Finding[]) {
   canvas.width = page.width
   canvas.height = page.height
   const context = canvas.getContext('2d', { alpha: false })
-  if (!context) throw new Error("Impossible de préparer l'export.")
+  if (!context) throw new Error(tr('Unable to prepare the export.', "Impossible de préparer l'export."))
   context.fillStyle = '#fff'
   context.fillRect(0, 0, canvas.width, canvas.height)
   context.drawImage(image, 0, 0, canvas.width, canvas.height)
@@ -362,7 +392,10 @@ export async function exportRedactedDocument(safeDocument: SafeDocument, finding
   if (safeDocument.kind === 'image') {
     const canvas = await flattenPage(safeDocument.pages[0], findings)
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
-    if (!blob) throw new Error("Impossible de générer l'image expurgée.")
+    if (!blob) throw new Error(tr(
+      'Unable to generate the redacted image.',
+      "Impossible de générer l'image expurgée.",
+    ))
     downloadBlob(blob, `${baseName}-safeshare.png`)
     return
   }

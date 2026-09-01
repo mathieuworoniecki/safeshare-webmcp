@@ -1,4 +1,5 @@
 import type { BoundingBox, Finding, FindingType } from '../types'
+import { tr } from './i18n'
 
 type PatternEvaluation = { confidence: number; reason: string }
 
@@ -40,67 +41,70 @@ function evaluateDate(value: string, context: string): PatternEvaluation | null 
   return {
     confidence: personalContext ? 0.9 : 0.68,
     reason: personalContext
-      ? 'Date valide trouvée dans un contexte personnel.'
-      : 'Date valide détectée, mais son caractère personnel doit être confirmé.',
+      ? tr('Valid date found in a personal context.', 'Date valide trouvée dans un contexte personnel.')
+      : tr(
+          'Valid date detected, but its personal nature should be confirmed.',
+          'Date valide détectée, mais son caractère personnel doit être confirmé.',
+        ),
   }
 }
 
 const patterns: PatternDefinition[] = [
   {
     type: 'email',
-    label: 'Adresse e-mail',
+    label: tr('Email address', 'Adresse e-mail'),
     regex: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
     confidence: 0.98,
-    reason: 'Structure complète d’une adresse e-mail reconnue.',
+    reason: tr('Complete email address structure recognized.', 'Structure complète d’une adresse e-mail reconnue.'),
   },
   {
     type: 'iban',
-    label: 'Coordonnées bancaires',
+    label: tr('Bank details', 'Coordonnées bancaires'),
     regex: /\b[A-Z]{2}\d{2}(?:[\s-]?[A-Z0-9]){11,30}\b/gi,
     confidence: 0.97,
-    reason: 'Structure de coordonnées bancaires reconnue.',
+    reason: tr('Bank account structure recognized.', 'Structure de coordonnées bancaires reconnue.'),
     evaluate: (value) => isValidIban(value)
-      ? { confidence: 0.99, reason: 'Structure IBAN reconnue et contrôle modulo 97 valide.' }
-      : { confidence: 0.62, reason: 'Structure IBAN probable, mais contrôle modulo 97 invalide ou OCR imprécis.' },
+      ? { confidence: 0.99, reason: tr('IBAN structure recognized with a valid modulo 97 check.', 'Structure IBAN reconnue et contrôle modulo 97 valide.') }
+      : { confidence: 0.62, reason: tr('Probable IBAN structure, but the modulo 97 check failed or OCR was imprecise.', 'Structure IBAN probable, mais contrôle modulo 97 invalide ou OCR imprécis.') },
   },
   {
     type: 'identity',
-    label: "Numéro d'identité",
+    label: tr('Identity number', "Numéro d'identité"),
     regex: /\b(?:NIR|SSN|ID|PASSEPORT|PASSPORT|CARTE\s+D['’]IDENTIT[EÉ])\s*[:#-]?\s*[A-Z0-9][A-Z0-9 .-]{5,22}\b/gi,
     confidence: 0.92,
-    reason: 'Identifiant trouvé à proximité d’un libellé d’identité.',
+    reason: tr('Identifier found near an identity label.', 'Identifiant trouvé à proximité d’un libellé d’identité.'),
   },
   {
     type: 'phone',
-    label: 'Numéro de téléphone',
+    label: tr('Phone number', 'Numéro de téléphone'),
     regex: /(?<!\d)(?:\+33|0)[1-9](?:[ .-]?\d{2}){4}(?!\d)/g,
     confidence: 0.94,
-    reason: 'Numéro compatible avec le plan téléphonique français.',
+    reason: tr('Number compatible with the French telephone numbering plan.', 'Numéro compatible avec le plan téléphonique français.'),
     evaluate: (value) => isPossiblePhone(value)
-      ? { confidence: 0.96, reason: 'Numéro français de dix chiffres structurellement valide.' }
+      ? { confidence: 0.96, reason: tr('Structurally valid ten-digit French number.', 'Numéro français de dix chiffres structurellement valide.') }
       : null,
   },
   {
     type: 'date',
-    label: 'Date personnelle',
+    label: tr('Personal date', 'Date personnelle'),
     regex: /\b(?:0?[1-9]|[12]\d|3[01])[/\.\-](?:0?[1-9]|1[0-2])[/\.\-](?:19|20)\d{2}\b/g,
     confidence: 0.76,
-    reason: 'Date calendaire reconnue.',
+    reason: tr('Calendar date recognized.', 'Date calendaire reconnue.'),
     evaluate: evaluateDate,
   },
   {
     type: 'address',
-    label: 'Adresse postale',
+    label: tr('Postal address', 'Adresse postale'),
     regex: /\b\d{1,4}\s+(?:rue|avenue|av\.?|boulevard|bd\.?|chemin|impasse|place|quai|route)\s+[\p{L}][\p{L}\s'’.-]{2,45}/giu,
     confidence: 0.84,
-    reason: 'Numéro et type de voie reconnus dans une adresse postale.',
+    reason: tr('Street number and type recognized in a postal address.', 'Numéro et type de voie reconnus dans une adresse postale.'),
   },
   {
     type: 'name',
-    label: 'Nom complet',
+    label: tr('Full name', 'Nom complet'),
     regex: /\b(?:nom(?:\s+complet)?|titulaire|collaborat(?:eur|rice))\s*:\s*[\p{L}][\p{L}'’.-]+(?:\s+[\p{L}][\p{L}'’.-]+){1,3}\b/giu,
     confidence: 0.86,
-    reason: 'Nom composé trouvé après un libellé de personne.',
+    reason: tr('Full name found after a person label.', 'Nom composé trouvé après un libellé de personne.'),
   },
 ]
 
@@ -207,17 +211,28 @@ export function deduplicateFindings(findings: Finding[]): Finding[] {
 export function explainFinding(finding: Finding) {
   if (finding.source === 'manual') {
     return {
-      summary: 'Cette zone a été ajoutée manuellement.',
+      summary: tr('This area was added manually.', 'Cette zone a été ajoutée manuellement.'),
       confidence: 100,
-      signals: ['Sélection visuelle explicite', 'Aucune valeur du document n’est exposée'],
+      signals: [
+        tr('Explicit visual selection', 'Sélection visuelle explicite'),
+        tr('No document value is exposed', 'Aucune valeur du document n’est exposée'),
+      ],
     }
   }
   return {
-    summary: finding.reason ?? `Motif compatible avec la catégorie « ${finding.label} ».`,
+    summary: finding.reason ?? tr(
+      `Pattern compatible with the “${finding.label}” category.`,
+      `Motif compatible avec la catégorie « ${finding.label} ».`,
+    ),
     confidence: Math.round(finding.confidence * 100),
     signals: [
-      `Source : ${finding.source === 'ocr' ? 'reconnaissance optique locale' : finding.source === 'demo' ? 'démonstration synthétique' : 'texte du PDF'}`,
-      finding.confidence < 0.8 ? 'Contrôle humain fortement recommandé' : 'Format cohérent avec la catégorie détectée',
+      tr(
+        `Source: ${finding.source === 'ocr' ? 'local optical recognition' : finding.source === 'demo' ? 'synthetic demo' : 'PDF text'}`,
+        `Source : ${finding.source === 'ocr' ? 'reconnaissance optique locale' : finding.source === 'demo' ? 'démonstration synthétique' : 'texte du PDF'}`,
+      ),
+      finding.confidence < 0.8
+        ? tr('Human review strongly recommended', 'Contrôle humain fortement recommandé')
+        : tr('Format matches the detected category', 'Format cohérent avec la catégorie détectée'),
     ],
   }
 }

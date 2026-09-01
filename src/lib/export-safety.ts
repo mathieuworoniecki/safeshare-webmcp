@@ -1,4 +1,5 @@
 import type { DocumentPage, Finding, SafeDocument } from '../types'
+import { tr } from './i18n'
 
 export type ExportSafetyReport = {
   ready: boolean
@@ -21,8 +22,11 @@ export function buildExportSafetyReport(
   const invalidBoxes = findings.filter((finding) => !isValidBox(finding)).length
   const issues: string[] = []
 
-  if (!safeDocument) issues.push('Aucun document chargé.')
-  if (invalidBoxes) issues.push(`${invalidBoxes} zone${invalidBoxes > 1 ? 's ont' : ' a'} des coordonnées invalides.`)
+  if (!safeDocument) issues.push(tr('No document loaded.', 'Aucun document chargé.'))
+  if (invalidBoxes) issues.push(tr(
+    `${invalidBoxes} ${invalidBoxes === 1 ? 'area has' : 'areas have'} invalid coordinates.`,
+    `${invalidBoxes} zone${invalidBoxes > 1 ? 's ont' : ' a'} des coordonnées invalides.`,
+  ))
 
   return {
     ready: Boolean(safeDocument) && issues.length === 0,
@@ -30,9 +34,9 @@ export function buildExportSafetyReport(
     zones: findings.length,
     invalidBoxes,
     guarantees: [
-      'Tous les masques visibles seront fusionnés dans les pixels.',
-      'Le fichier source restera inchangé.',
-      'Le téléchargement exigera une confirmation humaine.',
+      tr('All visible masks will be flattened into the pixels.', 'Tous les masques visibles seront fusionnés dans les pixels.'),
+      tr('The source file will remain unchanged.', 'Le fichier source restera inchangé.'),
+      tr('The download will require human confirmation.', 'Le téléchargement exigera une confirmation humaine.'),
     ],
     issues,
   }
