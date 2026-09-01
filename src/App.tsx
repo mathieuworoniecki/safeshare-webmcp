@@ -514,7 +514,7 @@ function App() {
                   <Eye size={16} /> {showOriginal ? 'Voir les masques' : "Voir l’original"}
                 </button>
                 <label className="opacity-control" title="Opacité de l’aperçu des masques">
-                  <span>Opacité</span>
+                  <span>Opacité de l’aperçu</span>
                   <input
                     type="range"
                     min="15"
@@ -524,6 +524,7 @@ function App() {
                     aria-label="Opacité de l’aperçu des masques"
                     onChange={(event) => setMaskOpacity(Number(event.target.value) / 100)}
                   />
+                  <output>{Math.round(maskOpacity * 100)}%</output>
                 </label>
                 <div className="zoom-controls" aria-label="Zoom du document">
                   <button className="icon-button" aria-label="Réduire le zoom" disabled={zoom <= 0.75} onClick={() => setZoom((value) => Math.max(0.75, value - 0.25))}><ZoomOut size={16} /></button>
@@ -566,7 +567,7 @@ function App() {
                         top: `${box.y * 100}%`,
                         width: `${box.width * 100}%`,
                         height: `${box.height * 100}%`,
-                        backgroundColor: `rgba(23, 33, 29, ${maskOpacity})`,
+                        backgroundColor: `rgba(37, 76, 62, ${maskOpacity})`,
                       }}
                       role="button"
                       tabIndex={0}
