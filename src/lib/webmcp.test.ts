@@ -28,6 +28,8 @@ const snapshot: AppSnapshot = {
   selectedPage: 0,
   scanProgress: { phase: 'ready', value: 100, message: 'ready' },
   exportDialogOpen: false,
+  canUndo: true,
+  canRedo: false,
 }
 
 afterEach(() => {
@@ -35,7 +37,7 @@ afterEach(() => {
 })
 
 describe('WebMCP integration', () => {
-  it('registers six scoped tools and removes them through AbortSignal', async () => {
+  it('registers ten scoped tools and removes them through AbortSignal', async () => {
     const tools: WebMCPTool[] = []
     const signals: AbortSignal[] = []
     Object.defineProperty(document, 'modelContext', {
@@ -53,13 +55,17 @@ describe('WebMCP integration', () => {
       setFindingStatus: vi.fn(() => true),
       setAllPending: vi.fn(() => 1),
       addManualRedaction: vi.fn(() => 'ZONE-1-01'),
-      prepareExport: vi.fn(() => ({ ready: false, blockers: 1 })),
+      undoLastAction: vi.fn(() => true),
+      prepareExport: vi.fn(() => ({
+        ready: false, blockers: 1, pending: 1, approved: 0, dismissed: 0, invalidBoxes: 0,
+        guarantees: [], issues: ['one pending'],
+      })),
     }
     let status: WebMCPStatus = 'unsupported'
     const cleanup = registerSafeShareTools(actions, (next) => { status = next })
     await vi.waitFor(() => expect(status).toBe('available'))
 
-    expect(tools).toHaveLength(6)
+    expect(tools).toHaveLength(10)
     expect(tools.every((tool) => tool.inputSchema)).toBe(true)
     cleanup()
     expect(signals.every((signal) => signal.aborted)).toBe(true)
@@ -77,10 +83,14 @@ describe('WebMCP integration', () => {
       setFindingStatus: () => true,
       setAllPending: () => 1,
       addManualRedaction: () => 'ZONE-1-01',
-      prepareExport: () => ({ ready: false, blockers: 1 }),
+      undoLastAction: () => true,
+      prepareExport: () => ({
+        ready: false, blockers: 1, pending: 1, approved: 0, dismissed: 0, invalidBoxes: 0,
+        guarantees: [], issues: ['one pending'],
+      }),
     }
     registerSafeShareTools(actions, () => undefined)
-    await vi.waitFor(() => expect(tools).toHaveLength(6))
+    await vi.waitFor(() => expect(tools).toHaveLength(10))
 
     const summary = await tools.find((tool) => tool.name === 'get_privacy_review')!.execute({})
     const findings = await tools.find((tool) => tool.name === 'list_privacy_findings')!.execute({})

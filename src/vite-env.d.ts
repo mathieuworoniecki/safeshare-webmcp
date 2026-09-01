@@ -1,8 +1,6 @@
 /// <reference types="vite/client" />
 
-type WebMCPToolResult = {
-  content: Array<{ type: 'text'; text: string }>
-}
+type WebMCPToolResult = Record<string, unknown>
 
 type WebMCPTool = {
   name: string

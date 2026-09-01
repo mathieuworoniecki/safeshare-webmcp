@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clampBox, deduplicateFindings, findSensitiveMatches, maskSensitiveValue } from './detection'
+import { clampBox, deduplicateFindings, findSensitiveMatches, isValidIban, maskSensitiveValue } from './detection'
 import type { Finding } from '../types'
 
 describe('sensitive-data detector', () => {
@@ -15,6 +15,19 @@ describe('sensitive-data detector', () => {
     const masked = maskSensitiveValue(original, 'email')
     expect(masked).not.toBe(original)
     expect(masked).toContain('@example.fr')
+  })
+
+  it('validates the IBAN checksum and lowers confidence when OCR produces an invalid one', () => {
+    expect(isValidIban('FR76 3000 6000 0112 3456 7890 189')).toBe(true)
+    expect(isValidIban('FR76 3000 6000 0112 3456 7890 180')).toBe(false)
+    const invalid = findSensitiveMatches('IBAN FR76 3000 6000 0112 3456 7890 180')
+      .find((match) => match.type === 'iban')
+    expect(invalid?.confidence).toBeLessThan(0.7)
+  })
+
+  it('rejects impossible dates and recognizes names with explicit context', () => {
+    expect(findSensitiveMatches('Date de naissance : 31/02/1991')).toHaveLength(0)
+    expect(findSensitiveMatches('Titulaire : Léa Martin').map((match) => match.type)).toContain('name')
   })
 
   it('keeps boxes inside the page', () => {

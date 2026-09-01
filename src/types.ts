@@ -27,6 +27,7 @@ export type Finding = {
   box: BoundingBox
   status: FindingStatus
   source: 'text' | 'ocr' | 'manual' | 'demo'
+  reason?: string
 }
 
 export type DocumentPage = {
@@ -58,4 +59,13 @@ export type AppSnapshot = {
   selectedPage: number
   scanProgress: ScanProgress
   exportDialogOpen: boolean
+  canUndo: boolean
+  canRedo: boolean
+}
+
+export type ActivityEntry = {
+  id: string
+  actor: 'human' | 'agent'
+  message: string
+  createdAt: number
 }

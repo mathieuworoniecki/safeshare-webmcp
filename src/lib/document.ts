@@ -4,6 +4,8 @@ import type { TextItem } from 'pdfjs-dist/types/src/display/api'
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { createWorker } from 'tesseract.js'
 import { createFinding, deduplicateFindings, findSensitiveMatches } from './detection'
+import { getRedactionRects } from './export-safety'
+import { validateUploadedFile } from './file-validation'
 import type { DocumentPage, Finding, SafeDocument, ScanProgress } from '../types'
 
 GlobalWorkerOptions.workerSrc = pdfWorker
@@ -18,6 +20,16 @@ type OcrLine = {
   text: string
   confidence?: number
   bbox: { x0: number; y0: number; x1: number; y1: number }
+}
+
+type OcrSession = {
+  recognize: (
+    canvas: HTMLCanvasElement,
+    pageIndex: number,
+    sequenceStart: number,
+    onProgress: ProgressReporter,
+  ) => Promise<Finding[]>
+  terminate: () => Promise<void>
 }
 
 function makeId() {
@@ -37,52 +49,65 @@ async function imageFromUrl(url: string): Promise<HTMLImageElement> {
   })
 }
 
-async function scanCanvasWithOcr(
-  canvas: HTMLCanvasElement,
-  pageIndex: number,
-  sequenceStart: number,
-  onProgress: ProgressReporter,
-): Promise<Finding[]> {
+function throwIfAborted(signal?: AbortSignal) {
+  if (signal?.aborted) throw new DOMException('Analyse annulée.', 'AbortError')
+}
+
+async function createOcrSession(signal?: AbortSignal): Promise<OcrSession> {
+  let activePage = 0
+  let activeProgress: ProgressReporter = () => undefined
   const worker = await createWorker('fra+eng', 1, {
     logger: (message) => {
       if (message.status === 'recognizing text') {
-        onProgress({
+        activeProgress({
           phase: 'scanning',
           value: Math.round((message.progress ?? 0) * 100),
-          message: `Lecture locale de la page ${pageIndex + 1}`,
+          message: `Lecture locale de la page ${activePage + 1}`,
         })
       }
     },
   })
-
-  try {
-    const result = await worker.recognize(canvas)
-    const lines = ((result.data as unknown as { lines?: OcrLine[] }).lines ?? []).filter(
-      (line) => line.text.trim().length > 0,
-    )
-    let sequence = sequenceStart
-    const findings = lines.flatMap((line) => {
-      const matches = findSensitiveMatches(line.text)
-      return matches.map((match) => {
-        const finding = createFinding(
-          { ...match, confidence: Math.min(match.confidence, (line.confidence ?? 85) / 100) },
-          pageIndex,
-          {
-            x: line.bbox.x0 / canvas.width,
-            y: line.bbox.y0 / canvas.height,
-            width: (line.bbox.x1 - line.bbox.x0) / canvas.width,
-            height: (line.bbox.y1 - line.bbox.y0) / canvas.height,
-          },
-          'ocr',
-          sequence,
-        )
-        sequence += 1
-        return finding
-      })
-    })
-    return findings
-  } finally {
+  let terminated = false
+  const terminate = async () => {
+    if (terminated) return
+    terminated = true
+    signal?.removeEventListener('abort', abortHandler)
     await worker.terminate()
+  }
+  const abortHandler = () => { void terminate() }
+  signal?.addEventListener('abort', abortHandler, { once: true })
+
+  return {
+    async recognize(canvas, pageIndex, sequenceStart, onProgress) {
+      throwIfAborted(signal)
+      activePage = pageIndex
+      activeProgress = onProgress
+      const result = await worker.recognize(canvas)
+      throwIfAborted(signal)
+      const lines = ((result.data as unknown as { lines?: OcrLine[] }).lines ?? []).filter(
+        (line) => line.text.trim().length > 0,
+      )
+      let sequence = sequenceStart
+      return lines.flatMap((line) => {
+        const matches = findSensitiveMatches(line.text)
+        return matches.map((match) => {
+          const finding = createFinding(
+            { ...match, confidence: Math.min(match.confidence, (line.confidence ?? 85) / 100) },
+            pageIndex,
+            {
+              x: line.bbox.x0 / canvas.width,
+              y: line.bbox.y0 / canvas.height,
+              width: (line.bbox.x1 - line.bbox.x0) / canvas.width,
+              height: (line.bbox.y1 - line.bbox.y0) / canvas.height,
+            },
+            'ocr',
+            sequence++,
+          )
+          return finding
+        })
+      })
+    },
+    terminate,
   }
 }
 
@@ -95,42 +120,84 @@ function scanPdfTextItems(
   sequenceStart: number,
 ): Finding[] {
   let sequence = sequenceStart
-  return items.flatMap((item) => {
-    const matches = findSensitiveMatches(item.str)
-    if (!matches.length || !item.str.length) return []
-
+  const itemRectangle = (item: TextItem) => {
     const [rawX1, rawY1, rawX2, rawY2] = convertRectangle([
       item.transform[4],
       item.transform[5],
       item.transform[4] + item.width,
       item.transform[5] + Math.max(item.height, Math.abs(item.transform[3])),
     ])
-    const x1 = Math.min(rawX1, rawX2)
-    const y1 = Math.min(rawY1, rawY2)
-    const width = Math.abs(rawX2 - rawX1)
-    const height = Math.abs(rawY2 - rawY1)
+    return {
+      x: Math.min(rawX1, rawX2),
+      y: Math.min(rawY1, rawY2),
+      width: Math.abs(rawX2 - rawX1),
+      height: Math.abs(rawY2 - rawY1),
+    }
+  }
 
-    return matches.map((match) => {
-      const characterWidth = width / item.str.length
-      const finding = createFinding(
+  const lines: TextItem[][] = []
+  items
+    .filter((item) => item.str.trim().length > 0)
+    .sort((a, b) => b.transform[5] - a.transform[5] || a.transform[4] - b.transform[4])
+    .forEach((item) => {
+      const line = lines.find((candidate) => Math.abs(candidate[0].transform[5] - item.transform[5]) <= 2.5)
+      if (line) line.push(item)
+      else lines.push([item])
+    })
+
+  return lines.flatMap((line) => {
+    line.sort((a, b) => a.transform[4] - b.transform[4])
+    let lineText = ''
+    const segments = line.map((item, index) => {
+      const previous = line[index - 1]
+      const joiner = previous && item.transform[4] - (previous.transform[4] + previous.width) > 1 ? ' ' : ''
+      lineText += joiner
+      const start = lineText.length
+      lineText += item.str
+      return { item, start, end: lineText.length, rectangle: itemRectangle(item) }
+    })
+
+    return findSensitiveMatches(lineText).flatMap((match) => {
+      const matchEnd = match.index + match.value.length
+      const selected = segments.filter((segment) => segment.end > match.index && segment.start < matchEnd)
+      if (!selected.length) return []
+
+      if (selected.length === 1) {
+        const segment = selected[0]
+        const localStart = Math.max(0, match.index - segment.start)
+        const localLength = Math.min(segment.item.str.length - localStart, match.value.length)
+        const characterWidth = segment.rectangle.width / Math.max(1, segment.item.str.length)
+        return [createFinding(
+          match,
+          pageIndex,
+          {
+            x: (segment.rectangle.x + characterWidth * localStart) / pageWidth,
+            y: segment.rectangle.y / pageHeight,
+            width: Math.max(characterWidth * localLength, 12) / pageWidth,
+            height: Math.max(segment.rectangle.height, 12) / pageHeight,
+          },
+          'text',
+          sequence++,
+        )]
+      }
+
+      const x1 = Math.min(...selected.map((segment) => segment.rectangle.x))
+      const y1 = Math.min(...selected.map((segment) => segment.rectangle.y))
+      const x2 = Math.max(...selected.map((segment) => segment.rectangle.x + segment.rectangle.width))
+      const y2 = Math.max(...selected.map((segment) => segment.rectangle.y + segment.rectangle.height))
+      return [createFinding(
         match,
         pageIndex,
-        {
-          x: (x1 + characterWidth * match.index) / pageWidth,
-          y: y1 / pageHeight,
-          width: Math.max(characterWidth * match.value.length, 12) / pageWidth,
-          height: Math.max(height, 12) / pageHeight,
-        },
+        { x: x1 / pageWidth, y: y1 / pageHeight, width: (x2 - x1) / pageWidth, height: (y2 - y1) / pageHeight },
         'text',
-        sequence,
-      )
-      sequence += 1
-      return finding
+        sequence++,
+      )]
     })
   })
 }
 
-async function processPdf(file: File, onProgress: ProgressReporter) {
+async function processPdf(file: File, onProgress: ProgressReporter, signal?: AbortSignal) {
+  throwIfAborted(signal)
   onProgress({ phase: 'reading', value: 5, message: 'Ouverture du PDF en mémoire' })
   const bytes = new Uint8Array(await file.arrayBuffer())
   const pdf = await getDocument({ data: bytes }).promise
@@ -140,52 +207,62 @@ async function processPdf(file: File, onProgress: ProgressReporter) {
 
   const pages: DocumentPage[] = []
   const findings: Finding[] = []
+  let ocrSession: OcrSession | null = null
 
-  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-    const page = await pdf.getPage(pageNumber)
-    const viewport = page.getViewport({ scale: RENDER_SCALE })
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.round(viewport.width)
-    canvas.height = Math.round(viewport.height)
-    const context = canvas.getContext('2d', { alpha: false })
-    if (!context) throw new Error("Le navigateur ne permet pas d'afficher ce PDF.")
+  try {
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      throwIfAborted(signal)
+      const page = await pdf.getPage(pageNumber)
+      const viewport = page.getViewport({ scale: RENDER_SCALE })
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(viewport.width)
+      canvas.height = Math.round(viewport.height)
+      const context = canvas.getContext('2d', { alpha: false })
+      if (!context) throw new Error("Le navigateur ne permet pas d'afficher ce PDF.")
 
-    onProgress({
-      phase: 'rendering',
-      value: Math.round((pageNumber / pdf.numPages) * 45),
-      message: `Préparation de la page ${pageNumber}/${pdf.numPages}`,
-    })
-    await page.render({ canvasContext: context, viewport }).promise
-    const textContent = await page.getTextContent()
-    const textItems = textContent.items.filter((item): item is TextItem => 'str' in item)
-    const pageFindings = scanPdfTextItems(
-      textItems,
-      pageNumber - 1,
-      viewport.width,
-      viewport.height,
-      (rectangle) => viewport.convertToViewportRectangle(rectangle),
-      findings.length,
-    )
-
-    if (pageFindings.length === 0) {
-      pageFindings.push(
-        ...(await scanCanvasWithOcr(canvas, pageNumber - 1, findings.length, onProgress)),
+      onProgress({
+        phase: 'rendering',
+        value: Math.round((pageNumber / pdf.numPages) * 45),
+        message: `Préparation de la page ${pageNumber}/${pdf.numPages}`,
+      })
+      await page.render({ canvasContext: context, viewport }).promise
+      throwIfAborted(signal)
+      const textContent = await page.getTextContent()
+      const textItems = textContent.items.filter((item): item is TextItem => 'str' in item)
+      const hasExtractableText = textItems.some((item) => item.str.trim().length > 0)
+      const pageFindings = scanPdfTextItems(
+        textItems,
+        pageNumber - 1,
+        viewport.width,
+        viewport.height,
+        (rectangle) => viewport.convertToViewportRectangle(rectangle),
+        findings.length,
       )
-    }
 
-    findings.push(...pageFindings)
-    pages.push({
-      index: pageNumber - 1,
-      imageUrl: canvasToDataUrl(canvas),
-      width: canvas.width,
-      height: canvas.height,
-    })
+      if (!hasExtractableText) {
+        ocrSession ??= await createOcrSession(signal)
+        pageFindings.push(
+          ...(await ocrSession.recognize(canvas, pageNumber - 1, findings.length, onProgress)),
+        )
+      }
+
+      findings.push(...pageFindings)
+      pages.push({
+        index: pageNumber - 1,
+        imageUrl: canvasToDataUrl(canvas),
+        width: canvas.width,
+        height: canvas.height,
+      })
+    }
+  } finally {
+    await ocrSession?.terminate()
   }
 
   return { pages, findings: deduplicateFindings(findings) }
 }
 
-async function processImage(file: File, onProgress: ProgressReporter) {
+async function processImage(file: File, onProgress: ProgressReporter, signal?: AbortSignal) {
+  throwIfAborted(signal)
   onProgress({ phase: 'reading', value: 8, message: "Ouverture de l'image en mémoire" })
   const objectUrl = URL.createObjectURL(file)
   try {
@@ -200,7 +277,13 @@ async function processImage(file: File, onProgress: ProgressReporter) {
     context.fillStyle = '#fff'
     context.fillRect(0, 0, canvas.width, canvas.height)
     context.drawImage(image, 0, 0, canvas.width, canvas.height)
-    const findings = await scanCanvasWithOcr(canvas, 0, 0, onProgress)
+    const ocrSession = await createOcrSession(signal)
+    let findings: Finding[]
+    try {
+      findings = await ocrSession.recognize(canvas, 0, 0, onProgress)
+    } finally {
+      await ocrSession.terminate()
+    }
     return {
       pages: [
         {
@@ -217,22 +300,21 @@ async function processImage(file: File, onProgress: ProgressReporter) {
   }
 }
 
-export async function processFile(file: File, onProgress: ProgressReporter) {
+export async function processFile(file: File, onProgress: ProgressReporter, signal?: AbortSignal) {
   if (file.size > MAX_FILE_SIZE) {
     throw new Error('Le fichier dépasse la limite locale de 18 Mo.')
   }
-  if (file.type !== 'application/pdf' && !file.type.startsWith('image/')) {
-    throw new Error('Format non pris en charge. Utilisez un PDF, PNG, JPG ou WEBP.')
-  }
+  const kind = await validateUploadedFile(file)
+  throwIfAborted(signal)
 
-  const result = file.type === 'application/pdf'
-    ? await processPdf(file, onProgress)
-    : await processImage(file, onProgress)
+  const result = kind === 'pdf'
+    ? await processPdf(file, onProgress, signal)
+    : await processImage(file, onProgress, signal)
 
   const safeDocument: SafeDocument = {
     id: makeId(),
     name: file.name,
-    kind: file.type === 'application/pdf' ? 'pdf' : 'image',
+    kind: kind === 'pdf' ? 'pdf' : 'image',
     size: file.size,
     pages: result.pages,
     createdAt: Date.now(),
@@ -257,15 +339,9 @@ async function flattenPage(page: DocumentPage, findings: Finding[]) {
   context.fillRect(0, 0, canvas.width, canvas.height)
   context.drawImage(image, 0, 0, canvas.width, canvas.height)
 
-  findings
-    .filter((finding) => finding.pageIndex === page.index && finding.status === 'approved')
-    .forEach((finding) => {
-      const x = finding.box.x * canvas.width
-      const y = finding.box.y * canvas.height
-      const width = finding.box.width * canvas.width
-      const height = finding.box.height * canvas.height
+  getRedactionRects(page, findings).forEach((rectangle) => {
       context.fillStyle = '#17211d'
-      context.fillRect(x - 3, y - 3, width + 6, height + 6)
+      context.fillRect(rectangle.x, rectangle.y, rectangle.width, rectangle.height)
     })
 
   return canvas

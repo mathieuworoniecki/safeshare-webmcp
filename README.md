@@ -15,7 +15,7 @@ SafeShare finds sensitive information in PDFs and images, lets you review every 
 ## How it works
 
 1. **Import** a PDF or image.
-2. **Review** each detected e-mail, phone number, IBAN, identity reference, date or address.
+2. **Review** each detected e-mail, phone number, IBAN, identity reference, date, name or address. Move or resize any mask when needed.
 3. **Export** a flattened copy in which approved redactions are permanently fused into the pixels.
 
 Your original file is never changed or uploaded.
@@ -43,9 +43,13 @@ SafeShare exposes the actions of its live interface as structured browser tools.
 |---|---|
 | `get_privacy_review` | Check the review progress |
 | `list_privacy_findings` | List safe metadata about detected zones |
+| `get_next_privacy_finding` | Find the next decision to review |
+| `explain_privacy_finding` | Explain a detection without revealing its value |
 | `focus_privacy_finding` | Show a zone in the visible interface |
 | `decide_privacy_finding` | Mark a zone to redact or preserve |
 | `add_manual_redaction` | Propose a rectangular redaction |
+| `undo_last_review_action` | Reverse the last review change |
+| `run_export_safety_check` | Check blockers without exporting |
 | `prepare_safe_export` | Check blockers and open the final review |
 
 The tools never return document text, file names, images or sensitive values. They also cannot download the result. **Only the user can confirm the final export.**
@@ -62,6 +66,7 @@ File → local analysis → human review → flattened local copy
 - The document stays in the current browser tab.
 - The source file is never modified or saved by SafeShare.
 - OCR and redaction run on the device.
+- Every review change is reversible and visible in the activity log.
 - Refreshing or closing the tab clears the review.
 - The first OCR use may download a language model, but document pixels are not sent with that request.
 

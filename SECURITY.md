@@ -10,6 +10,9 @@ SafeShare handles potentially sensitive documents, so its security boundary is i
 4. Agent-triggered actions remain visible and reversible in the review interface.
 5. No WebMCP tool can complete a download. Export requires a human checkbox and click.
 6. Approved masks are rasterized into a new file so hidden PDF text is not retained underneath them.
+7. Uploads are checked by their binary signature instead of trusting the filename or MIME label.
+8. Agent and human review changes share the same undo history and appear in the local activity log.
+9. A read-only safety check blocks export when decisions or mask coordinates are invalid.
 
 ## Reporting a vulnerability
 
