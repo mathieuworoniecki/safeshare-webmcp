@@ -11,7 +11,7 @@ import {
   LockKeyhole,
   RotateCcw,
   Redo2,
-  ShieldCheck,
+  ScanText,
   Sparkles,
   Trash2,
   Undo2,
@@ -375,7 +375,7 @@ function App() {
     <div className="app-shell">
       <header className="topbar">
         <a className="brand" href="#main" aria-label="SafeShare, aller au contenu">
-          <span className="brand-mark"><ShieldCheck size={19} strokeWidth={2.4} /></span>
+          <span className="brand-mark"><ScanText size={20} strokeWidth={2.2} /></span>
           <span>SafeShare</span>
         </a>
         <div className="editor-summary">
